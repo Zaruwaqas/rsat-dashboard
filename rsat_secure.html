@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RSAT Insight · Secure Edition</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body { 
+      background: #1a1e24;
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .chroma-container {
+      background: #222831;
+      border-radius: 32px;
+      padding: 30px;
+      box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
+      border: 1px solid #2d343d;
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+
+    h3, .card-title, .filter-label, .kpi-label {
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .card-chart { 
+      background: #2a303a;
+      border-radius: 24px; 
+      padding: 1.5rem; 
+      box-shadow: 0 15px 30px -12px rgba(0, 0, 0, 0.5);
+      margin-bottom: 20px; 
+      height: 100%;
+      transition: all 0.3s ease;
+      border: 1px solid #363f4a;
+    }
+
+    .card-chart:hover {
+      transform: translateY(-2px);
+      border-color: #5f6b7a;
+    }
+
+    .card-title { 
+      font-size: 1.1rem; 
+      font-weight: 500; 
+      color: #ffffff;
+      margin-bottom: 20px; 
+      padding-bottom: 12px; 
+      border-bottom: 1px solid #363f4a; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .card-title span { 
+      font-size: 0.75rem; 
+      font-weight: 400; 
+      background: #1e242c;
+      padding: 5px 12px;
+      border-radius: 30px;
+      color: #b9c4d4;
+      border: 1px solid #414e5c;
+    }
+
+    .chart-scroll-container { 
+      max-height: 400px; 
+      overflow-y: auto; 
+      overflow-x: hidden; 
+      padding-right: 10px; 
+      scrollbar-width: thin; 
+      scrollbar-color: #5f6b7a #2a303a; 
+    }
+
+    .chart-scroll-container::-webkit-scrollbar { width: 5px; }
+    .chart-scroll-container::-webkit-scrollbar-track { background: #2a303a; border-radius: 10px; }
+    .chart-scroll-container::-webkit-scrollbar-thumb { 
+      background: #5f6b7a;
+      border-radius: 10px; 
+    }
+
+    canvas { max-height: none; width: 100% !important; min-height: 250px; }
+
+    .filter-panel { 
+      background: #2a303a;
+      border-radius: 28px; 
+      padding: 1.5rem; 
+      margin: 20px 0; 
+      box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.5); 
+      border: 1px solid #363f4a;
+    }
+
+    .filter-panel select, .filter-panel input {
+      background: #1e242c !important;
+      border: 1px solid #3f4a57 !important;
+      border-radius: 40px !important;
+      color: #ffffff !important;
+      font-size: 0.9rem;
+      padding: 10px 16px !important;
+      width: 100%;
+    }
+
+    .filter-panel select:focus, .filter-panel input:focus {
+      border-color: #7f8c9d !important;
+      box-shadow: 0 0 0 3px rgba(127, 140, 157, 0.25) !important;
+    }
+
+    .badge-rsat { 
+      background: #5f7daf;
+      color: #ffffff; 
+      font-weight: 500; 
+      padding: 5px 12px; 
+      border-radius: 30px; 
+      font-size: 0.75rem;
+      border: 1px solid #7f9ed5;
+      display: inline-block;
+    }
+
+    .badge-dsat { 
+      background: #c47b7b;
+      color: #ffffff; 
+      font-weight: 500; 
+      padding: 5px 12px; 
+      border-radius: 30px; 
+      font-size: 0.75rem;
+      border: 1px solid #e09f9f;
+      display: inline-block;
+    }
+
+    .kpi-box { 
+      background: #2a303a;
+      border-radius: 24px; 
+      padding: 20px 15px; 
+      text-align: center; 
+      box-shadow: 0 15px 30px -12px rgba(0, 0, 0, 0.5); 
+      border: 1px solid #363f4a;
+    }
+
+    .kpi-value { 
+      font-size: 2.5rem; 
+      font-weight: 600; 
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .kpi-label { 
+      font-size: 0.8rem; 
+      color: #b9c4d4;
+      text-transform: uppercase; 
+      margin-top: 8px;
+    }
+
+    .filter-label { 
+      font-size: 0.7rem; 
+      font-weight: 500; 
+      text-transform: uppercase; 
+      color: #b9c4d4; 
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+
+    .btn-outline-secondary {
+      background: transparent;
+      border: 1px solid #4d5a68;
+      color: #ffffff;
+      font-weight: 400;
+      padding: 10px 20px;
+      transition: all 0.3s ease;
+      border-radius: 40px;
+      cursor: pointer;
+    }
+
+    .btn-outline-secondary:hover {
+      background: #3f4a57;
+      border-color: #7f8c9d;
+      color: #ffffff;
+    }
+
+    h3 {
+      color: #ffffff;
+      font-weight: 500;
+      font-size: 1.8rem;
+      letter-spacing: 1px;
+    }
+
+    .table { 
+      background: #000000;
+      border-radius: 24px; 
+      overflow: hidden; 
+      border: 1px solid #363f4a;
+      color: #ffffff;
+      width: 100%;
+    }
+
+    .table thead { 
+      background: #0a0c0f;
+      border-bottom: 2px solid #363f4a; 
+    }
+
+    .table th {
+      padding: 15px 12px;
+      color: #ffffff;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .table td {
+      padding: 12px;
+      border-bottom: 1px solid #1f2a35;
+      color: #ffffff;
+      background: #000000;
+    }
+
+    .agent-selector {
+      background: #1e242c;
+      border: 1px solid #363f4a;
+      color: #ffffff;
+      padding: 12px;
+      border-radius: 40px;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    .status-badge {
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      background: #2a303a;
+      color: #b9c4d4;
+    }
+
+    .top-reasons-badge { 
+      background: #5f7daf;
+      color: #ffffff;
+      padding: 4px 12px;
+      border-radius: 30px;
+      font-size: 0.7rem;
+      border: 1px solid #7f9ed5;
+    }
+
+    #sheetStatus {
+      margin-left: 15px;
+      font-size: 0.9rem;
+    }
+
+    .loading {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    .secure-badge {
+      background: #2a5f7a;
+      color: white;
+      padding: 5px 15px;
+      border-radius: 40px;
+      font-size: 0.8rem;
+      display: inline-block;
+      margin-left: 15px;
+      border: 1px solid #3f8bbf;
+    }
+  </style>
+</head>
+<body>
+  <div class="chroma-container">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mt-2 mb-4">
+      <h3>RSAT · SECURE EDITION <span class="secure-badge">🔒 Private Sheet</span></h3>
+      <div style="width: 400px;">
+        <div class="text-muted" style="color: #b9c4d4 !important; font-size: 0.9rem;">Using secure API - No URL needed</div>
+      </div>
+    </div>
+
+    <!-- Sheet Controls -->
+    <div class="row mb-4">
+      <div class="col-12 d-flex align-items-center">
+        <button class="btn btn-outline-secondary" id="loadSheetBtn">📊 Load Data from Secure API</button>
+        <span id="sheetStatus" class="ms-3"></span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-panel row g-3 align-items-end">
+      <div class="col-md-2">
+        <div class="filter-label">Filter by</div>
+        <select id="filterType" class="form-select">
+          <option value="email">👤 Agent</option>
+          <option value="Team Lead">🎯 Team Lead</option>
+          <option value="country">🌍 Country</option>
+          <option value="LOB">📁 LOB</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <div class="filter-label">Search</div>
+        <input type="text" id="search" class="form-control" placeholder="Type to filter...">
+      </div>
+      <div class="col-md-3">
+        <div class="filter-label">Date range</div>
+        <div class="d-flex gap-2">
+          <input type="date" id="startDate" class="form-control" />
+          <input type="date" id="endDate" class="form-control" />
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="filter-label">Quick filters</div>
+        <select id="quickDateFilter" class="form-select">
+          <option value="">Custom range</option>
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+          <option value="quarter">Last 90 Days</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button class="btn btn-outline-secondary px-4" id="applyFilters">Apply</button>
+        <button class="btn btn-outline-secondary px-4" id="resetFilters">Reset</button>
+      </div>
+    </div>
+
+    <!-- Team Stats -->
+    <div class="team-stats" id="teamStats" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; max-height: 90px; overflow-y: auto; padding: 8px; background: #1e242c; border-radius: 20px; border: 1px solid #363f4a;"></div>
+
+    <!-- KPI Cards -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-3">
+        <div class="kpi-box">
+          <div class="kpi-value" id="kpiTotal">0</div>
+          <div class="kpi-label">Total Surveys</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="kpi-box">
+          <div class="kpi-value" id="kpiRSAT">0%</div>
+          <div class="kpi-label">RSAT (4-5)</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="kpi-box">
+          <div class="kpi-value" id="kpiDSAT">0%</div>
+          <div class="kpi-label">DSAT (1-3)</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="kpi-box">
+          <div class="kpi-value" id="kpiAvg">0.0</div>
+          <div class="kpi-label">Avg Score</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Selector for Date-wise Performance -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <select id="agentSelector" class="agent-selector">
+          <option value="">📋 Select Agent to View Date-wise RSAT Performance</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <div class="kpi-box" style="padding: 12px;">
+          <div class="d-flex justify-content-between align-items-center">
+            <span style="color: #ffffff;">Selected Agent: <strong id="selectedAgentName">None</strong></span>
+            <span><span class="badge-rsat" id="agentOverallRSAT">0%</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Date-wise Chart -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-12">
+        <div class="card-chart">
+          <div class="card-title">
+            📅 Agent Daily Performance Trend
+            <span id="agentDateRange"></span>
+          </div>
+          <div style="height: 300px;">
+            <canvas id="agentDateWiseChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="row g-4">
+      <div class="col-md-6">
+        <div class="card-chart">
+          <div class="card-title">
+            ⭐ RSAT by Agent
+            <span id="agentCount">(0 agents)</span>
+          </div>
+          <div class="chart-scroll-container">
+            <canvas id="agentRSATChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card-chart">
+          <div class="card-title">
+            📊 RSAT by LOB
+            <span id="lobCount">(0 LOBs)</span>
+          </div>
+          <div class="chart-scroll-container">
+            <canvas id="lobRSATChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2 - Team Lead -->
+    <div class="row g-4 mt-2">
+      <div class="col-md-6">
+        <div class="card-chart">
+          <div class="card-title">
+            🎯 RSAT by Team Lead
+            <span id="leadCount">(0 leads)</span>
+          </div>
+          <div class="chart-scroll-container">
+            <canvas id="leadRSATChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card-chart">
+          <div class="card-title">
+            🌍 RSAT by Country
+            <span id="countryCount">(0 countries)</span>
+          </div>
+          <div class="chart-scroll-container">
+            <canvas id="countryRSATChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 3 -->
+    <div class="row g-4 mt-2">
+      <div class="col-md-6">
+        <div class="card-chart">
+          <div class="card-title">
+            📌 Top 5 Contact Reasons
+            <span id="reasonCount" class="top-reasons-badge">Top 5</span>
+          </div>
+          <div class="chart-scroll-container">
+            <canvas id="reasonContributionChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card-chart">
+          <div class="card-title">📈 RSAT vs DSAT</div>
+          <div style="height: 300px;">
+            <canvas id="overallRSATChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <section style="margin: 30px 0 20px;">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span style="font-size: 1.2rem; color: #ffffff;">📋 Detailed Records</span>
+        <span class="status-badge" id="recordCount">0 records</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table" id="dataTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Email</th>
+              <th>Rider ID</th>
+              <th>LOB</th>
+              <th>Contact Reason</th>
+              <th>Local Reason</th>
+              <th>RSAT</th>
+              <th>Country</th>
+              <th>Team Lead</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    Chart.register(ChartDataLabels);
+    
+    // ===========================================
+    // ✅ YOUR SECURE APPS SCRIPT URL
+    // ===========================================
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwtlaWO3ywuW9ncM0KGH-KXOcGi3VtU_yd5O4jDcqtj4nxgOgU3TXN_wsKG3OcbROrjFw/exec';
+    // ===========================================
+    
+    // Globals
+    let allData = [];
+    let filteredData = [];
+    let charts = {};
+    
+    const colorPalette = [
+      '#5f7daf', '#c47b7b', '#7f9ed5', '#e09f9f', '#8fba8f',
+      '#b88fba', '#d5af7f', '#af8f8f', '#9fb5d5', '#d59fb5',
+      '#8fafaf', '#c49f7f', '#b5af8f', '#af9fd5', '#d5af9f'
+    ];
+
+    // Parse date function
+    function parseDate(dateStr) {
+      if (!dateStr) return null;
+      dateStr = String(dateStr).trim();
+      
+      // Handle DD/MM/YYYY format
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          return new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+      }
+      
+      // Handle YYYY-MM-DD format
+      if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+          let year = parts[0];
+          let month = parts[1];
+          let day = parts[2];
+          if (year.length === 2) year = '20' + year;
+          return new Date(year, month - 1, day);
+        }
+      }
+      
+      return new Date(dateStr);
+    }
+
+    function formatDateForCompare(dateObj) {
+      if (!dateObj || isNaN(dateObj)) return '';
+      return dateObj.toISOString().split('T')[0];
+    }
+
+    // Load data from secure Apps Script (no URL parameter needed)
+    async function loadFromGoogleSheets() {
+      const statusEl = document.getElementById('sheetStatus');
+      statusEl.innerHTML = '⏳ Loading data via secure API...';
+      statusEl.className = 'ms-3 loading';
+      statusEl.style.color = '#b9c4d4';
+
+      try {
+        // Just call the Apps Script directly - no URL parameter needed!
+        const response = await fetch(APPS_SCRIPT_URL);
+        const csvText = await response.text();
+        
+        // Check if response is an error
+        if (csvText.startsWith('Error:')) {
+          throw new Error(csvText);
+        }
+
+        // Validate we got actual CSV data
+        if (!csvText || csvText.length < 10) {
+          throw new Error('No data received from sheet');
+        }
+
+        console.log('Received CSV data, length:', csvText.length);
+
+        // Parse CSV
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+          throw new Error('CSV has no data rows');
+        }
+
+        // Parse headers - handle quoted headers
+        const headers = lines[0].split(',').map(h => 
+          h.replace(/^"|"$/g, '').trim()
+        );
+
+        console.log('Headers found:', headers);
+
+        // Find column indices
+        const dateIdx = headers.findIndex(h => h.toLowerCase().includes('date'));
+        const emailIdx = headers.findIndex(h => h.toLowerCase().includes('email'));
+        const riderIdx = headers.findIndex(h => h.toLowerCase().includes('rider'));
+        const lobIdx = headers.findIndex(h => h.toLowerCase().includes('lob'));
+        const reasonIdx = headers.findIndex(h => h.toLowerCase().includes('contact') && h.toLowerCase().includes('reason'));
+        const localIdx = headers.findIndex(h => h.toLowerCase().includes('local'));
+        const rsatIdx = headers.findIndex(h => h.toLowerCase().includes('rsat'));
+        const countryIdx = headers.findIndex(h => h.toLowerCase().includes('country'));
+        const teamLeadIdx = headers.findIndex(h => h.toLowerCase().includes('team') && h.toLowerCase().includes('lead'));
+
+        console.log('Column indices:', { dateIdx, emailIdx, riderIdx, lobIdx, reasonIdx, localIdx, rsatIdx, countryIdx, teamLeadIdx });
+
+        // Parse data rows
+        allData = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          
+          // Parse CSV line with quoted fields
+          const values = [];
+          let inQuote = false;
+          let currentValue = '';
+          
+          for (let char of lines[i]) {
+            if (char === '"') {
+              inQuote = !inQuote;
+            } else if (char === ',' && !inQuote) {
+              values.push(currentValue.replace(/^"|"$/g, '').trim());
+              currentValue = '';
+            } else {
+              currentValue += char;
+            }
+          }
+          values.push(currentValue.replace(/^"|"$/g, '').trim());
+
+          // Create row object
+          const row = {
+            Date: dateIdx >= 0 ? values[dateIdx] || '' : '',
+            email: emailIdx >= 0 ? values[emailIdx] || '' : '',
+            'Rider ID': riderIdx >= 0 ? values[riderIdx] || '' : '',
+            LOB: lobIdx >= 0 ? values[lobIdx] || 'Unknown' : 'Unknown',
+            Contact_Reason: reasonIdx >= 0 ? values[reasonIdx] || 'Unknown' : 'Unknown',
+            local_contact_reason: localIdx >= 0 ? values[localIdx] || '' : '',
+            RSAT: rsatIdx >= 0 ? parseInt(values[rsatIdx]) || 0 : 0,
+            country: countryIdx >= 0 ? values[countryIdx] || 'Unknown' : 'Unknown',
+            'Team Lead': teamLeadIdx >= 0 ? values[teamLeadIdx] || 'Unknown' : 'Unknown'
+          };
+
+          // Only add if we have essential data
+          if (row.Date && row.email) {
+            allData.push(row);
+          }
+        }
+
+        if (allData.length === 0) {
+          throw new Error('No valid data rows found');
+        }
+
+        statusEl.innerHTML = `✅ Successfully loaded ${allData.length} records via secure API`;
+        statusEl.style.color = '#4caf50';
+        statusEl.className = 'ms-3';
+        
+        filteredData = [...allData];
+        
+        // Populate agent selector
+        populateAgentSelector();
+        
+        // Update all visuals
+        updateAllVisuals();
+
+      } catch (error) {
+        console.error('Error loading sheet:', error);
+        statusEl.innerHTML = `❌ Error: ${error.message}`;
+        statusEl.style.color = '#f44336';
+        statusEl.className = 'ms-3';
+        
+        alert('Failed to load sheet. Check console for details.\n\nError: ' + error.message);
+      }
+    }
+
+    // Populate agent selector dropdown
+    function populateAgentSelector() {
+      const agents = [...new Set(allData.map(row => row.email).filter(email => email))];
+      const selector = document.getElementById('agentSelector');
+      selector.innerHTML = '<option value="">📋 Select Agent to View Date-wise RSAT Performance</option>';
+      
+      agents.sort().forEach(agent => {
+        const option = document.createElement('option');
+        option.value = agent;
+        option.textContent = agent;
+        selector.appendChild(option);
+      });
+    }
+
+    // Filter handlers
+    document.getElementById('loadSheetBtn').addEventListener('click', loadFromGoogleSheets);
+    document.getElementById('applyFilters').addEventListener('click', applyFilters);
+    document.getElementById('resetFilters').addEventListener('click', resetFilters);
+    document.getElementById('quickDateFilter').addEventListener('change', handleQuickDateFilter);
+    document.getElementById('agentSelector').addEventListener('change', function(e) {
+      document.getElementById('selectedAgentName').innerText = e.target.value || 'None';
+      updateDateWiseAgentChart();
+    });
+
+    function handleQuickDateFilter() {
+      const value = document.getElementById('quickDateFilter').value;
+      const today = new Date();
+      let startDate = '';
+      let endDate = formatDateForCompare(today);
+      
+      switch(value) {
+        case 'today':
+          startDate = endDate;
+          break;
+        case 'week':
+          const weekAgo = new Date(today);
+          weekAgo.setDate(today.getDate() - 7);
+          startDate = formatDateForCompare(weekAgo);
+          break;
+        case 'month':
+          const monthAgo = new Date(today);
+          monthAgo.setMonth(today.getMonth() - 1);
+          startDate = formatDateForCompare(monthAgo);
+          break;
+        case 'quarter':
+          const quarterAgo = new Date(today);
+          quarterAgo.setDate(today.getDate() - 90);
+          startDate = formatDateForCompare(quarterAgo);
+          break;
+        default:
+          return;
+      }
+      
+      document.getElementById('startDate').value = startDate;
+      document.getElementById('endDate').value = endDate;
+      applyFilters();
+    }
+
+    function resetFilters() {
+      document.getElementById('filterType').value = 'email';
+      document.getElementById('search').value = '';
+      document.getElementById('startDate').value = '';
+      document.getElementById('endDate').value = '';
+      document.getElementById('quickDateFilter').value = '';
+      filteredData = [...allData];
+      updateAllVisuals();
+    }
+
+    function applyFilters() {
+      if (!allData.length) return;
+      
+      const type = document.getElementById('filterType').value;
+      const query = document.getElementById('search').value.toLowerCase().trim();
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+
+      filteredData = allData.filter(row => {
+        if (query) {
+          const val = row[type];
+          if (!val || !val.toString().toLowerCase().includes(query)) return false;
+        }
+        if (startDate || endDate) {
+          if (!row.Date) return false;
+          const rowDate = parseDate(row.Date);
+          if (!rowDate || isNaN(rowDate)) return false;
+          const rowDateStr = formatDateForCompare(rowDate);
+          if (startDate && rowDateStr < startDate) return false;
+          if (endDate && rowDateStr > endDate) return false;
+        }
+        return true;
+      });
+
+      updateAllVisuals();
+    }
+
+    function calculateRSATScore(data, dimension) {
+      const scores = {};
+      data.forEach(row => {
+        const key = row[dimension];
+        if (key && key !== 'Unknown' && key !== 'null' && key !== '') {
+          if (!scores[key]) {
+            scores[key] = { total: 0, count: 0, rsat: 0 };
+          }
+          scores[key].total += row.RSAT;
+          scores[key].count++;
+          if (row.RSAT >= 4) scores[key].rsat++;
+        }
+      });
+      return scores;
+    }
+
+    function updateTeamStats(data) {
+      const leadTeams = {};
+      data.forEach(row => {
+        const lead = row['Team Lead'];
+        const agent = row.email;
+        if (lead && agent && lead !== 'Unknown' && lead !== 'null' && lead !== '') {
+          if (!leadTeams[lead]) {
+            leadTeams[lead] = new Set();
+          }
+          leadTeams[lead].add(agent);
+        }
+      });
+
+      const statsDiv = document.getElementById('teamStats');
+      statsDiv.innerHTML = '';
+      
+      if (Object.keys(leadTeams).length === 0) {
+        statsDiv.innerHTML = '<span class="stat-item" style="background: #323b46; padding: 6px 16px; border-radius: 30px; color: #e6e9f0;">No team lead data</span>';
+        return;
+      }
+      
+      Object.entries(leadTeams).forEach(([lead, agents]) => {
+        const agentCount = agents.size;
+        const leadData = data.filter(r => r['Team Lead'] === lead);
+        const leadRSAT = leadData.filter(r => r.RSAT >= 4).length;
+        const leadTotal = leadData.length;
+        const rsatPercent = leadTotal > 0 ? ((leadRSAT/leadTotal)*100).toFixed(1) : 0;
+        
+        const statItem = document.createElement('span');
+        statItem.className = 'stat-item';
+        statItem.style.cssText = 'background: #323b46; padding: 6px 16px; border-radius: 30px; color: #e6e9f0; border: 1px solid #4d5a68;';
+        statItem.innerHTML = `${lead}: ${agentCount} agents · ${rsatPercent}% RSAT`;
+        statsDiv.appendChild(statItem);
+      });
+    }
+
+    function updateDateWiseAgentChart() {
+      const selectedAgent = document.getElementById('agentSelector').value;
+      if (!selectedAgent || !filteredData.length) {
+        document.getElementById('agentDateRange').innerText = '';
+        return;
+      }
+
+      // Get agent's data
+      const agentData = filteredData.filter(row => row.email === selectedAgent);
+      
+      // Group by date and calculate average RSAT
+      const dateGroups = {};
+      agentData.forEach(row => {
+        if (!row.Date) return;
+        if (!dateGroups[row.Date]) {
+          dateGroups[row.Date] = { total: 0, count: 0 };
+        }
+        dateGroups[row.Date].total += row.RSAT;
+        dateGroups[row.Date].count++;
+      });
+
+      // Sort dates
+      const sortedDates = Object.keys(dateGroups).sort((a, b) => {
+        return new Date(a) - new Date(b);
+      });
+
+      const avgRSATByDate = sortedDates.map(date => 
+        (dateGroups[date].total / dateGroups[date].count).toFixed(1)
+      );
+
+      // Update overall RSAT badge
+      const totalRSAT = agentData.filter(r => r.RSAT >= 4).length;
+      const totalCount = agentData.length;
+      const overallPercent = totalCount > 0 ? (totalRSAT / totalCount * 100).toFixed(1) : 0;
+      document.getElementById('agentOverallRSAT').innerText = `${overallPercent}%`;
+      document.getElementById('agentDateRange').innerHTML = 
+        `${sortedDates.length} days · ${agentData.length} interactions`;
+
+      // Destroy existing chart if any
+      if (charts.agentDateWise) charts.agentDateWise.destroy();
+
+      // Create new date-wise chart
+      charts.agentDateWise = new Chart(document.getElementById('agentDateWiseChart'), {
+        type: 'line',
+        data: {
+          labels: sortedDates,
+          datasets: [{
+            label: 'Average RSAT Score',
+            data: avgRSATByDate,
+            borderColor: '#5f7daf',
+            backgroundColor: 'rgba(95, 125, 175, 0.1)',
+            borderWidth: 3,
+            tension: 0.3,
+            fill: true,
+            pointBackgroundColor: '#5f7daf',
+            pointBorderColor: '#ffffff',
+            pointRadius: 5,
+            pointHoverRadius: 7
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e242c',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff',
+              callbacks: {
+                label: (context) => {
+                  const date = context.label;
+                  const count = dateGroups[date].count;
+                  return [
+                    `RSAT: ${context.raw}`,
+                    `Interactions: ${count}`
+                  ];
+                }
+              }
+            },
+            datalabels: { display: false }
+          },
+          scales: {
+            y: {
+              min: 1,
+              max: 5,
+              grid: { color: '#363f4a' },
+              ticks: { 
+                color: '#ffffff', 
+                stepSize: 1,
+                callback: (value) => value
+              }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { 
+                color: '#ffffff', 
+                maxRotation: 45, 
+                minRotation: 45,
+                font: { size: 10 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateAllVisuals() {
+      const data = filteredData;
+      
+      // Update team stats
+      updateTeamStats(data);
+      
+      // Update KPI
+      const total = data.length;
+      const rsatCount = data.filter(r => r.RSAT >= 4).length;
+      const dsatCount = data.filter(r => r.RSAT <= 3 && r.RSAT > 0).length;
+      const totalScore = data.reduce((sum, r) => sum + (r.RSAT || 0), 0);
+      const avgScore = total > 0 ? (totalScore / total).toFixed(1) : 0;
+      
+      document.getElementById('kpiTotal').innerText = total;
+      document.getElementById('kpiRSAT').innerText = total > 0 ? ((rsatCount/total)*100).toFixed(1) + '%' : '0%';
+      document.getElementById('kpiDSAT').innerText = total > 0 ? ((dsatCount/total)*100).toFixed(1) + '%' : '0%';
+      document.getElementById('kpiAvg').innerText = avgScore;
+      document.getElementById('recordCount').innerText = `${total} records`;
+
+      // Destroy existing charts (except agent date-wise)
+      Object.keys(charts).forEach(key => {
+        if (key !== 'agentDateWise' && charts[key]) charts[key].destroy();
+      });
+
+      if (data.length === 0) return;
+
+      const getChartHeight = (itemCount) => Math.max(350, itemCount * 35);
+
+      // Agent chart
+      const agentScores = calculateRSATScore(data, 'email');
+      const allAgents = Object.entries(agentScores)
+        .sort((a, b) => b[1].count - a[1].count)
+        .map(([name, data]) => ({
+          name: name.split('@')[0],
+          rsatPercent: data.count > 0 ? (data.rsat / data.count * 100).toFixed(1) : 0,
+          count: data.count
+        }));
+
+      document.getElementById('agentCount').innerText = `(${allAgents.length} agents)`;
+      
+      if (allAgents.length > 0) {
+        document.getElementById('agentRSATChart').style.height = getChartHeight(allAgents.length) + 'px';
+        
+        charts.agentRSAT = new Chart(document.getElementById('agentRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: allAgents.map(a => `${a.name} (${a.count})`),
+            datasets: [{
+              label: 'RSAT %',
+              data: allAgents.map(a => parseFloat(a.rsatPercent)),
+              backgroundColor: colorPalette,
+              borderRadius: 6,
+              barPercentage: 0.7
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                callbacks: {
+                  label: (context) => {
+                    const agent = allAgents[context.dataIndex];
+                    return [
+                      `RSAT: ${agent.rsatPercent}%`,
+                      `Surveys: ${agent.count}`
+                    ];
+                  }
+                }
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (v) => v + '%',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { 
+                max: 100, 
+                grid: { color: '#363f4a' },
+                ticks: { color: '#ffffff' }
+              },
+              y: { 
+                ticks: { color: '#ffffff' },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+
+      // LOB chart
+      const lobScores = calculateRSATScore(data, 'LOB');
+      const lobData = Object.entries(lobScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .map(([name, data]) => ({
+          name,
+          rsatPercent: data.count > 0 ? (data.rsat / data.count * 100).toFixed(1) : 0,
+          count: data.count
+        }));
+
+      document.getElementById('lobCount').innerText = `(${lobData.length} LOBs)`;
+      
+      if (lobData.length > 0) {
+        document.getElementById('lobRSATChart').style.height = getChartHeight(lobData.length) + 'px';
+        
+        charts.lobRSAT = new Chart(document.getElementById('lobRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: lobData.map(l => `${l.name} (${l.count})`),
+            datasets: [{
+              label: 'RSAT %',
+              data: lobData.map(l => parseFloat(l.rsatPercent)),
+              backgroundColor: colorPalette,
+              borderRadius: 6,
+              barPercentage: 0.7
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (v) => v + '%',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Team Lead chart
+      const leadScores = calculateRSATScore(data, 'Team Lead');
+      const leadData = Object.entries(leadScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .map(([name, data]) => ({
+          name,
+          rsatPercent: data.count > 0 ? (data.rsat / data.count * 100).toFixed(1) : 0,
+          count: data.count
+        }));
+
+      document.getElementById('leadCount').innerText = `(${leadData.length} leads)`;
+      
+      if (leadData.length > 0) {
+        document.getElementById('leadRSATChart').style.height = getChartHeight(leadData.length) + 'px';
+        
+        charts.leadRSAT = new Chart(document.getElementById('leadRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: leadData.map(l => `${l.name} (${l.count})`),
+            datasets: [{
+              label: 'RSAT %',
+              data: leadData.map(l => parseFloat(l.rsatPercent)),
+              backgroundColor: colorPalette,
+              borderRadius: 6,
+              barPercentage: 0.7
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (v) => v + '%',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Country chart
+      const countryScores = calculateRSATScore(data, 'country');
+      const countryData = Object.entries(countryScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .map(([name, data]) => ({
+          name,
+          rsatPercent: data.count > 0 ? (data.rsat / data.count * 100).toFixed(1) : 0,
+          count: data.count
+        }));
+
+      document.getElementById('countryCount').innerText = `(${countryData.length} countries)`;
+      
+      if (countryData.length > 0) {
+        document.getElementById('countryRSATChart').style.height = getChartHeight(countryData.length) + 'px';
+        
+        charts.countryRSAT = new Chart(document.getElementById('countryRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: countryData.map(c => `${c.name} (${c.count})`),
+            datasets: [{
+              label: 'RSAT %',
+              data: countryData.map(c => parseFloat(c.rsatPercent)),
+              backgroundColor: colorPalette,
+              borderRadius: 6,
+              barPercentage: 0.7
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (v) => v + '%',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Contact Reason - TOP 5
+      const reasonScores = calculateRSATScore(data, 'Contact_Reason');
+      const reasonsList = Object.entries(reasonScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 5);
+
+      document.getElementById('reasonCount').innerText = `Top 5 of ${Object.keys(reasonScores).length}`;
+      
+      if (reasonsList.length > 0) {
+        document.getElementById('reasonContributionChart').style.height = '350px';
+        
+        charts.reasonContribution = new Chart(document.getElementById('reasonContributionChart'), {
+          type: 'bar',
+          data: {
+            labels: reasonsList.map(r => r[0].substring(0, 25) + (r[0].length > 25 ? '...' : '')),
+            datasets: [
+              {
+                label: 'Volume',
+                data: reasonsList.map(r => r[1].count),
+                backgroundColor: '#5f7daf',
+                yAxisID: 'y',
+                borderRadius: 6,
+                barPercentage: 0.7
+              },
+              {
+                label: 'RSAT %',
+                data: reasonsList.map(r => parseFloat((r[1].rsat / r[1].count * 100).toFixed(1))),
+                backgroundColor: '#c47b7b',
+                yAxisID: 'y1',
+                borderRadius: 6,
+                barPercentage: 0.7
+              }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                labels: { 
+                  color: '#ffffff',
+                  usePointStyle: true,
+                  boxWidth: 8
+                }
+              },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                callbacks: {
+                  label: (context) => {
+                    const reason = reasonsList[context.dataIndex];
+                    if (context.dataset.label === 'Volume') {
+                      return `Volume: ${(context.raw/1000).toFixed(1)}k (${context.raw})`;
+                    } else {
+                      return `RSAT: ${context.raw}% (${reason[1].rsat}/${reason[1].count})`;
+                    }
+                  }
+                }
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (value, context) => {
+                  if (context.dataset.label === 'RSAT %') {
+                    return value + '%';
+                  }
+                  return (value/1000).toFixed(1) + 'k';
+                },
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: {
+              x: { 
+                grid: { color: '#363f4a' },
+                ticks: { 
+                  color: '#ffffff',
+                  callback: (value) => value >= 1000 ? (value/1000).toFixed(0) + 'k' : value
+                }
+              },
+              y: { 
+                ticks: { color: '#ffffff' },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+
+      // Overall RSAT vs DSAT
+      const rsatPercent = total > 0 ? (rsatCount/total*100).toFixed(1) : 0;
+      const dsatPercent = total > 0 ? (dsatCount/total*100).toFixed(1) : 0;
+
+      charts.overallRSAT = new Chart(document.getElementById('overallRSATChart'), {
+        type: 'doughnut',
+        data: {
+          labels: [`RSAT (${rsatPercent}%)`, `DSAT (${dsatPercent}%)`],
+          datasets: [{
+            data: [rsatCount, dsatCount],
+            backgroundColor: ['#5f7daf', '#c47b7b'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          cutout: '70%',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { 
+              position: 'bottom',
+              labels: { 
+                color: '#ffffff',
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e242c',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff'
+            },
+            datalabels: {
+              color: '#ffffff',
+              font: { weight: '600', size: 12 },
+              formatter: (value, ctx) => {
+                const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                return total > 0 ? ((value/total)*100).toFixed(1) + '%' : '0%';
+              },
+              backgroundColor: 'rgba(30, 36, 44, 0.8)',
+              borderRadius: 12,
+              padding: { top: 4, bottom: 4, left: 8, right: 8 }
+            }
+          }
+        }
+      });
+
+      updateTable(data);
+      updateDateWiseAgentChart();
+    }
+
+    function updateTable(data) {
+      const tbody = document.querySelector('#dataTable tbody');
+      tbody.innerHTML = '';
+      
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4">No records match filters</td></tr>';
+        return;
+      }
+
+      data.slice(0, 100).forEach(row => {
+        const tr = document.createElement('tr');
+        const badgeClass = row.RSAT >= 4 ? 'badge-rsat' : (row.RSAT <= 3 && row.RSAT > 0 ? 'badge-dsat' : '');
+        
+        tr.innerHTML = `
+          <td>${row.Date || '-'}</td>
+          <td>${row.email || '-'}</td>
+          <td>${row['Rider ID'] || '-'}</td>
+          <td>${row.LOB || '-'}</td>
+          <td>${row.Contact_Reason || '-'}</td>
+          <td>${row.local_contact_reason || '-'}</td>
+          <td><span class="${badgeClass}">${row.RSAT || '-'}</span></td>
+          <td>${row.country || '-'}</td>
+          <td>${row['Team Lead'] || '-'}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      if (data.length > 100) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="9" class="text-center" style="color: #b9c4d4;">Showing first 100 of ${data.length} records</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Initialize empty charts
+    window.onload = function() {
+      ['agentRSATChart', 'lobRSATChart', 'leadRSATChart', 'countryRSATChart', 'reasonContributionChart', 'overallRSATChart', 'agentDateWiseChart'].forEach(id => {
+        const ctx = document.getElementById(id).getContext('2d');
+        charts[id] = new Chart(ctx, { 
+          type: 'bar', 
+          data: { labels: ['No data'], datasets: [{ data: [0] }] },
+          options: { maintainAspectRatio: false }
+        });
+      });
+    };
+  </script>
+</body>
+</html>
