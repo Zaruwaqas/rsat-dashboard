@@ -521,28 +521,43 @@
       '#8fafaf', '#c49f7f', '#b5af8f', '#af9fd5', '#d5af9f'
     ];
 
-    // Parse date function
+    // ===========================================
+    // FIXED: Parse date function handles ALL formats including GMT
+    // ===========================================
     function parseDate(dateStr) {
       if (!dateStr) return null;
       dateStr = String(dateStr).trim();
       
-      // Handle DD/MM/YYYY format
-      if (dateStr.includes('/')) {
-        const parts = dateStr.split('/');
+      // Handle "Thu Apr 02 2026 10:00:00 GMT+0300" format
+      if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.includes('(')) {
+        return new Date(dateStr);
+      }
+      
+      // Handle YYYY-MM-DD format (with or without time)
+      if (dateStr.includes('-')) {
+        // Split to get just the date part if there's time
+        const datePart = dateStr.split(' ')[0];
+        const parts = datePart.split('-');
         if (parts.length === 3) {
-          return new Date(parts[2], parts[1] - 1, parts[0]);
+          let year = parseInt(parts[0]);
+          let month = parseInt(parts[1]) - 1; // JS months are 0-indexed
+          let day = parseInt(parts[2]);
+          
+          if (year < 100) year = 2000 + year;
+          return new Date(year, month, day);
         }
       }
       
-      // Handle YYYY-MM-DD format
-      if (dateStr.includes('-')) {
-        const parts = dateStr.split('-');
+      // Handle MM/DD/YYYY or M/D/YYYY format
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
         if (parts.length === 3) {
-          let year = parts[0];
-          let month = parts[1];
-          let day = parts[2];
-          if (year.length === 2) year = '20' + year;
-          return new Date(year, month - 1, day);
+          let month = parseInt(parts[0]) - 1;
+          let day = parseInt(parts[1]);
+          let year = parseInt(parts[2]);
+          
+          if (year < 100) year = 2000 + year;
+          return new Date(year, month, day);
         }
       }
       
@@ -740,6 +755,9 @@
       updateAllVisuals();
     }
 
+    // ===========================================
+    // FIXED: applyFilters with proper date comparison
+    // ===========================================
     function applyFilters() {
       if (!allData.length) return;
       
@@ -749,17 +767,30 @@
       const endDate = document.getElementById('endDate').value;
 
       filteredData = allData.filter(row => {
+        // Text filter
         if (query) {
           const val = row[type];
           if (!val || !val.toString().toLowerCase().includes(query)) return false;
         }
+        
+        // Date filter
         if (startDate || endDate) {
           if (!row.Date) return false;
+          
+          // Parse the row date
           const rowDate = parseDate(row.Date);
           if (!rowDate || isNaN(rowDate)) return false;
-          const rowDateStr = formatDateForCompare(rowDate);
-          if (startDate && rowDateStr < startDate) return false;
-          if (endDate && rowDateStr > endDate) return false;
+          
+          // Parse filter dates
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          
+          // Set time to midnight for proper date comparison
+          if (start) start.setHours(0, 0, 0, 0);
+          if (end) end.setHours(23, 59, 59, 999);
+          
+          if (start && rowDate < start) return false;
+          if (end && rowDate > end) return false;
         }
         return true;
       });
@@ -819,8 +850,14 @@
       });
     }
 
+    // ===========================================
+    // FIXED: updateDateWiseAgentChart with debug logs
+    // ===========================================
     function updateDateWiseAgentChart() {
       const selectedAgent = document.getElementById('agentSelector').value;
+      console.log('Selected agent:', selectedAgent);
+      console.log('Filtered data length:', filteredData.length);
+      
       if (!selectedAgent || !filteredData.length) {
         document.getElementById('agentDateRange').innerText = '';
         return;
@@ -828,16 +865,23 @@
 
       // Get agent's data
       const agentData = filteredData.filter(row => row.email === selectedAgent);
+      console.log('Agent data count:', agentData.length);
+      
+      if (agentData.length === 0) {
+        document.getElementById('agentDateRange').innerText = 'No data for selected agent';
+        return;
+      }
       
       // Group by date and calculate average RSAT
       const dateGroups = {};
       agentData.forEach(row => {
         if (!row.Date) return;
-        if (!dateGroups[row.Date]) {
-          dateGroups[row.Date] = { total: 0, count: 0 };
+        const dateStr = row.Date;
+        if (!dateGroups[dateStr]) {
+          dateGroups[dateStr] = { total: 0, count: 0 };
         }
-        dateGroups[row.Date].total += row.RSAT;
-        dateGroups[row.Date].count++;
+        dateGroups[dateStr].total += row.RSAT;
+        dateGroups[dateStr].count++;
       });
 
       // Sort dates
