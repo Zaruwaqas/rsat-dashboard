@@ -522,7 +522,7 @@
     ];
 
     // ===========================================
-    // FIXED: Parse date function handles ALL formats including GMT
+    // FIXED: Parse date function handles ALL formats and removes time
     // ===========================================
     function parseDate(dateStr) {
       if (!dateStr) return null;
@@ -530,7 +530,9 @@
       
       // Handle "Thu Apr 02 2026 10:00:00 GMT+0300" format
       if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.includes('(')) {
-        return new Date(dateStr);
+        const date = new Date(dateStr);
+        // Return only the date part (YYYY-MM-DD)
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
       }
       
       // Handle YYYY-MM-DD format (with or without time)
@@ -814,49 +816,89 @@
       return scores;
     }
 
+    // ===========================================
+    // FIXED: Team Stats - Separates leads from countries
+    // ===========================================
     function updateTeamStats(data) {
       const leadTeams = {};
+      const countryStats = {};
+      
+      // List of country names to filter out
+      const countryNames = ['iraq', 'kuwait', 'oman', 'uae', 'saudi', 'qatar', 'bahrain', 'jordan', 'lebanon', 'egypt', 'morocco', 'algeria', 'tunisia', 'libya', 'sudan', 'yemen', 'syria', 'palestine'];
+      
       data.forEach(row => {
         const lead = row['Team Lead'];
         const agent = row.email;
+        const country = row.country;
+        
+        // Separate team leads from countries
         if (lead && agent && lead !== 'Unknown' && lead !== 'null' && lead !== '') {
-          if (!leadTeams[lead]) {
-            leadTeams[lead] = new Set();
+          // Check if this is actually a country name
+          const isCountry = countryNames.includes(lead.toLowerCase().trim());
+          
+          if (!isCountry) {
+            // It's a real team lead
+            if (!leadTeams[lead]) {
+              leadTeams[lead] = new Set();
+            }
+            leadTeams[lead].add(agent);
+          } else {
+            // It's a country mislabeled as team lead
+            if (!countryStats[lead]) {
+              countryStats[lead] = new Set();
+            }
+            countryStats[lead].add(agent);
           }
-          leadTeams[lead].add(agent);
         }
       });
 
       const statsDiv = document.getElementById('teamStats');
       statsDiv.innerHTML = '';
       
-      if (Object.keys(leadTeams).length === 0) {
-        statsDiv.innerHTML = '<span class="stat-item" style="background: #323b46; padding: 6px 16px; border-radius: 30px; color: #e6e9f0;">No team lead data</span>';
-        return;
+      // Display team leads first
+      if (Object.keys(leadTeams).length > 0) {
+        Object.entries(leadTeams).forEach(([lead, agents]) => {
+          const agentCount = agents.size;
+          const leadData = data.filter(r => r['Team Lead'] === lead);
+          const leadRSAT = leadData.filter(r => r.RSAT >= 4).length;
+          const leadTotal = leadData.length;
+          const rsatPercent = leadTotal > 0 ? ((leadRSAT/leadTotal)*100).toFixed(1) : 0;
+          
+          const statItem = document.createElement('span');
+          statItem.className = 'stat-item';
+          statItem.style.cssText = 'background: #2a5f7a; padding: 6px 16px; border-radius: 30px; color: #ffffff; border: 1px solid #3f8bbf;';
+          statItem.innerHTML = `👤 ${lead}: ${agentCount} agents · ${rsatPercent}% RSAT`;
+          statsDiv.appendChild(statItem);
+        });
       }
       
-      Object.entries(leadTeams).forEach(([lead, agents]) => {
-        const agentCount = agents.size;
-        const leadData = data.filter(r => r['Team Lead'] === lead);
-        const leadRSAT = leadData.filter(r => r.RSAT >= 4).length;
-        const leadTotal = leadData.length;
-        const rsatPercent = leadTotal > 0 ? ((leadRSAT/leadTotal)*100).toFixed(1) : 0;
-        
-        const statItem = document.createElement('span');
-        statItem.className = 'stat-item';
-        statItem.style.cssText = 'background: #323b46; padding: 6px 16px; border-radius: 30px; color: #e6e9f0; border: 1px solid #4d5a68;';
-        statItem.innerHTML = `${lead}: ${agentCount} agents · ${rsatPercent}% RSAT`;
-        statsDiv.appendChild(statItem);
-      });
+      // Display countries separately
+      if (Object.keys(countryStats).length > 0) {
+        Object.entries(countryStats).forEach(([country, agents]) => {
+          const agentCount = agents.size;
+          const countryData = data.filter(r => r.country === country);
+          const countryRSAT = countryData.filter(r => r.RSAT >= 4).length;
+          const countryTotal = countryData.length;
+          const rsatPercent = countryTotal > 0 ? ((countryRSAT/countryTotal)*100).toFixed(1) : 0;
+          
+          const statItem = document.createElement('span');
+          statItem.className = 'stat-item';
+          statItem.style.cssText = 'background: #5f7daf; padding: 6px 16px; border-radius: 30px; color: #ffffff; border: 1px solid #7f9ed5;';
+          statItem.innerHTML = `🌍 ${country}: ${agentCount} agents · ${rsatPercent}% RSAT`;
+          statsDiv.appendChild(statItem);
+        });
+      }
+      
+      if (Object.keys(leadTeams).length === 0 && Object.keys(countryStats).length === 0) {
+        statsDiv.innerHTML = '<span class="stat-item" style="background: #323b46; padding: 6px 16px; border-radius: 30px; color: #e6e9f0;">No team lead data</span>';
+      }
     }
 
     // ===========================================
-    // FIXED: updateDateWiseAgentChart with debug logs
+    // FIXED: Agent chart shows percentages instead of raw scores
     // ===========================================
     function updateDateWiseAgentChart() {
       const selectedAgent = document.getElementById('agentSelector').value;
-      console.log('Selected agent:', selectedAgent);
-      console.log('Filtered data length:', filteredData.length);
       
       if (!selectedAgent || !filteredData.length) {
         document.getElementById('agentDateRange').innerText = '';
@@ -865,7 +907,6 @@
 
       // Get agent's data
       const agentData = filteredData.filter(row => row.email === selectedAgent);
-      console.log('Agent data count:', agentData.length);
       
       if (agentData.length === 0) {
         document.getElementById('agentDateRange').innerText = 'No data for selected agent';
@@ -876,7 +917,12 @@
       const dateGroups = {};
       agentData.forEach(row => {
         if (!row.Date) return;
-        const dateStr = row.Date;
+        const dateObj = parseDate(row.Date);
+        if (!dateObj) return;
+        
+        // Format date as YYYY-MM-DD to remove time
+        const dateStr = dateObj.toISOString().split('T')[0];
+        
         if (!dateGroups[dateStr]) {
           dateGroups[dateStr] = { total: 0, count: 0 };
         }
@@ -885,12 +931,11 @@
       });
 
       // Sort dates
-      const sortedDates = Object.keys(dateGroups).sort((a, b) => {
-        return new Date(a) - new Date(b);
-      });
+      const sortedDates = Object.keys(dateGroups).sort();
 
+      // Calculate percentage (score/5 * 100)
       const avgRSATByDate = sortedDates.map(date => 
-        (dateGroups[date].total / dateGroups[date].count).toFixed(1)
+        ((dateGroups[date].total / dateGroups[date].count) * 20).toFixed(1)
       );
 
       // Update overall RSAT badge
@@ -904,13 +949,13 @@
       // Destroy existing chart if any
       if (charts.agentDateWise) charts.agentDateWise.destroy();
 
-      // Create new date-wise chart
+      // Create new date-wise chart with percentages
       charts.agentDateWise = new Chart(document.getElementById('agentDateWiseChart'), {
         type: 'line',
         data: {
           labels: sortedDates,
           datasets: [{
-            label: 'Average RSAT Score',
+            label: 'RSAT %',
             data: avgRSATByDate,
             borderColor: '#5f7daf',
             backgroundColor: 'rgba(95, 125, 175, 0.1)',
@@ -936,24 +981,32 @@
                 label: (context) => {
                   const date = context.label;
                   const count = dateGroups[date].count;
+                  const avgScore = ((parseFloat(context.raw) / 100) * 5).toFixed(1);
                   return [
-                    `RSAT: ${context.raw}`,
-                    `Interactions: ${count}`
+                    `RSAT: ${context.raw}%`,
+                    `Interactions: ${count}`,
+                    `Avg Score: ${avgScore}/5`
                   ];
                 }
               }
             },
-            datalabels: { display: false }
+            datalabels: {
+              anchor: 'end',
+              align: 'end',
+              formatter: (value) => value + '%',
+              color: '#ffffff',
+              font: { size: 9 }
+            }
           },
           scales: {
             y: {
-              min: 1,
-              max: 5,
+              min: 0,
+              max: 100,
               grid: { color: '#363f4a' },
               ticks: { 
                 color: '#ffffff', 
-                stepSize: 1,
-                callback: (value) => value
+                stepSize: 20,
+                callback: (value) => value + '%'
               }
             },
             x: {
@@ -1371,8 +1424,15 @@
         const tr = document.createElement('tr');
         const badgeClass = row.RSAT >= 4 ? 'badge-rsat' : (row.RSAT <= 3 && row.RSAT > 0 ? 'badge-dsat' : '');
         
+        // Format date to remove time if present
+        let displayDate = row.Date || '-';
+        if (displayDate.includes('GMT') || displayDate.includes('UTC') || displayDate.includes('(')) {
+          const dateObj = new Date(displayDate);
+          displayDate = dateObj.toLocaleDateString();
+        }
+        
         tr.innerHTML = `
-          <td>${row.Date || '-'}</td>
+          <td>${displayDate}</td>
           <td>${row.email || '-'}</td>
           <td>${row['Rider ID'] || '-'}</td>
           <td>${row.LOB || '-'}</td>
