@@ -141,6 +141,17 @@
       display: inline-block;
     }
 
+    .badge-neutral { 
+      background: #5f6b7a;
+      color: #ffffff; 
+      font-weight: 500; 
+      padding: 5px 12px; 
+      border-radius: 30px; 
+      font-size: 0.75rem;
+      border: 1px solid #7f8c9d;
+      display: inline-block;
+    }
+
     .kpi-box { 
       background: #2a303a;
       border-radius: 24px; 
@@ -278,6 +289,23 @@
       margin-left: 15px;
       border: 1px solid #3f8bbf;
     }
+
+    .comparison-badge {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 20px;
+      margin-left: 5px;
+    }
+    
+    .above-baseline {
+      background: #2d5a3a;
+      color: #8bc34a;
+    }
+    
+    .below-baseline {
+      background: #5a2d2d;
+      color: #ff8a8a;
+    }
   </style>
 </head>
 <body>
@@ -350,7 +378,7 @@
       <div class="col-md-3">
         <div class="kpi-box">
           <div class="kpi-value" id="kpiRSAT">0%</div>
-          <div class="kpi-label">RSAT (4-5)</div>
+          <div class="kpi-label">RSAT (4-5) - Baseline</div>
         </div>
       </div>
       <div class="col-md-3">
@@ -518,6 +546,22 @@
     // CORRECT BASELINE PERCENTAGES (from client data)
     const BASELINE_RSAT_PERCENT = 82.32;
     const BASELINE_DSAT_PERCENT = 17.68;
+    
+    // Country-specific target mapping (if client dashboard has different targets per country)
+    // This would need to be adjusted based on actual client data
+    const COUNTRY_BASELINE = {
+      'Iraq': 82.32,
+      'Kuwait': 82.32,
+      'Oman': 82.32,
+      'Qatar': 82.32,
+      'UAE': 82.32,
+      'Saudi Arabia': 82.32,
+      'Bahrain': 82.32,
+      'Jordan': 82.32,
+      'Lebanon': 82.32,
+      'Egypt': 82.32,
+      'default': 82.32
+    };
     
     const colorPalette = [
       '#5f7daf', '#c47b7b', '#7f9ed5', '#e09f9f', '#8fba8f',
@@ -821,17 +865,21 @@
       updateAllVisuals();
     }
 
-    function calculateRSATScore(data, dimension) {
+    function calculateDimensionScores(data, dimension) {
       const scores = {};
       data.forEach(row => {
         const key = row[dimension];
         if (key && key !== 'Unknown' && key !== 'null' && key !== '') {
           if (!scores[key]) {
-            scores[key] = { total: 0, count: 0, rsat: 0 };
+            scores[key] = { total: 0, count: 0, rsat: 0, dsat: 0 };
           }
           scores[key].total += row.RSAT;
           scores[key].count++;
-          if (row.RSAT >= 4) scores[key].rsat++; // 4-5 = RSAT ✅
+          if (row.RSAT >= 4) {
+            scores[key].rsat++; // 4-5 = RSAT
+          } else if (row.RSAT <= 3 && row.RSAT > 0) {
+            scores[key].dsat++; // 1-3 = DSAT
+          }
         }
       });
       return scores;
@@ -954,10 +1002,11 @@
         const dateStr = `${year}-${month}-${day}`;
         
         if (!dateGroups[dateStr]) {
-          dateGroups[dateStr] = { total: 0, count: 0 };
+          dateGroups[dateStr] = { total: 0, count: 0, rsat: 0 };
         }
         dateGroups[dateStr].total += row.RSAT;
         dateGroups[dateStr].count++;
+        if (row.RSAT >= 4) dateGroups[dateStr].rsat++;
       });
 
       // Sort dates chronologically
@@ -967,9 +1016,9 @@
 
       console.log('Dates found for agent:', sortedDates);
 
-      // Calculate percentage (score/5 * 100)
-      const avgRSATByDate = sortedDates.map(date => 
-        ((dateGroups[date].total / dateGroups[date].count) * 20).toFixed(1)
+      // Calculate RSAT percentage (not average score)
+      const rsatPercentByDate = sortedDates.map(date => 
+        dateGroups[date].count > 0 ? ((dateGroups[date].rsat / dateGroups[date].count) * 100).toFixed(1) : 0
       );
 
       // Update overall RSAT badge
@@ -983,14 +1032,14 @@
       // Destroy existing chart if any
       if (charts.agentDateWise) charts.agentDateWise.destroy();
 
-      // Create new date-wise chart with percentages
+      // Create new date-wise chart with RSAT percentages
       charts.agentDateWise = new Chart(document.getElementById('agentDateWiseChart'), {
         type: 'line',
         data: {
           labels: sortedDates,
           datasets: [{
             label: 'RSAT %',
-            data: avgRSATByDate,
+            data: rsatPercentByDate,
             borderColor: '#5f7daf',
             backgroundColor: 'rgba(95, 125, 175, 0.1)',
             borderWidth: 3,
@@ -1015,11 +1064,12 @@
                 label: (context) => {
                   const date = context.label;
                   const count = dateGroups[date].count;
-                  const avgScore = ((parseFloat(context.raw) / 100) * 5).toFixed(1);
+                  const rsatCount = dateGroups[date].rsat;
+                  const rsatPct = context.raw;
                   return [
-                    `RSAT: ${context.raw}%`,
+                    `RSAT: ${rsatPct}%`,
                     `Interactions: ${count}`,
-                    `Avg Score: ${avgScore}/5`
+                    `RSAT Count: ${rsatCount}`
                   ];
                 }
               }
@@ -1087,14 +1137,17 @@
 
       const getChartHeight = (itemCount) => Math.max(350, itemCount * 35);
 
-      // Agent chart
-      const agentScores = calculateRSATScore(data, 'email');
+      // ===========================================
+      // Agent chart with RSAT% (not average score)
+      // ===========================================
+      const agentScores = calculateDimensionScores(data, 'email');
       const allAgents = Object.entries(agentScores)
         .sort((a, b) => b[1].count - a[1].count)
         .map(([name, data]) => ({
           name: name.split('@')[0],
           rsatPercent: data.count > 0 ? (data.rsat / data.count * 100).toFixed(1) : 0,
-          count: data.count
+          count: data.count,
+          baseline: BASELINE_RSAT_PERCENT
         }));
 
       document.getElementById('agentCount').innerText = `(${allAgents.length} agents)`;
@@ -1127,9 +1180,12 @@
                 callbacks: {
                   label: (context) => {
                     const agent = allAgents[context.dataIndex];
+                    const diff = (parseFloat(agent.rsatPercent) - BASELINE_RSAT_PERCENT).toFixed(1);
+                    const diffText = diff > 0 ? `+${diff}% above baseline` : `${diff}% below baseline`;
                     return [
                       `RSAT: ${agent.rsatPercent}%`,
-                      `Surveys: ${agent.count}`
+                      `Surveys: ${agent.count}`,
+                      diffText
                     ];
                   }
                 }
@@ -1157,8 +1213,10 @@
         });
       }
 
-      // LOB chart
-      const lobScores = calculateRSATScore(data, 'LOB');
+      // ===========================================
+      // LOB chart with RSAT%
+      // ===========================================
+      const lobScores = calculateDimensionScores(data, 'LOB');
       const lobData = Object.entries(lobScores)
         .filter(([name]) => name && name !== 'Unknown')
         .map(([name, data]) => ({
@@ -1190,6 +1248,20 @@
             maintainAspectRatio: false,
             plugins: {
               legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                callbacks: {
+                  label: (context) => {
+                    const lob = lobData[context.dataIndex];
+                    return [
+                      `RSAT: ${lob.rsatPercent}%`,
+                      `Surveys: ${lob.count}`
+                    ];
+                  }
+                }
+              },
               datalabels: {
                 anchor: 'end',
                 align: 'end',
@@ -1206,8 +1278,10 @@
         });
       }
 
-      // Team Lead chart
-      const leadScores = calculateRSATScore(data, 'Team Lead');
+      // ===========================================
+      // Team Lead chart with RSAT%
+      // ===========================================
+      const leadScores = calculateDimensionScores(data, 'Team Lead');
       const leadData = Object.entries(leadScores)
         .filter(([name]) => name && name !== 'Unknown')
         .map(([name, data]) => ({
@@ -1239,6 +1313,20 @@
             maintainAspectRatio: false,
             plugins: {
               legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                callbacks: {
+                  label: (context) => {
+                    const lead = leadData[context.dataIndex];
+                    return [
+                      `RSAT: ${lead.rsatPercent}%`,
+                      `Surveys: ${lead.count}`
+                    ];
+                  }
+                }
+              },
               datalabels: {
                 anchor: 'end',
                 align: 'end',
@@ -1255,57 +1343,132 @@
         });
       }
 
-      // Country chart
-      const countryScores = calculateRSATScore(data, 'country');
+      // ===========================================
+      // Country chart with RSAT% - FIXED to match client dashboard
+      // ===========================================
+      const countryScores = calculateDimensionScores(data, 'country');
+      
+      // Get all countries and calculate their RSAT%
       const countryData = Object.entries(countryScores)
-        .filter(([name]) => name && name !== 'Unknown')
-        .map(([name, data]) => ({
-          name,
-          rsatPercent: data.count > 0 ? (data.rsat / data.count * 100).toFixed(1) : 0,
-          count: data.count
-        }));
+        .filter(([name]) => name && name !== 'Unknown' && name !== 'null' && name.trim() !== '')
+        .map(([name, data]) => {
+          const actualRsat = data.count > 0 ? (data.rsat / data.count * 100) : 0;
+          
+          // Use country-specific baseline or default
+          const countryBaseline = COUNTRY_BASELINE[name] || COUNTRY_BASELINE.default;
+          
+          return {
+            name,
+            rsatPercent: actualRsat.toFixed(1),
+            actualRsat: actualRsat,
+            baseline: countryBaseline,
+            count: data.count,
+            // Calculate variance from baseline
+            variance: (actualRsat - countryBaseline).toFixed(1)
+          };
+        })
+        .sort((a, b) => b.count - a.count); // Sort by volume
 
       document.getElementById('countryCount').innerText = `(${countryData.length} countries)`;
       
       if (countryData.length > 0) {
         document.getElementById('countryRSATChart').style.height = getChartHeight(countryData.length) + 'px';
         
+        // Create custom labels with variance indicators
+        const chartLabels = countryData.map(c => {
+          const variance = parseFloat(c.variance);
+          const varianceClass = variance >= 0 ? 'above-baseline' : 'below-baseline';
+          const varianceSign = variance > 0 ? '+' : '';
+          return `${c.name} (${c.count}) ${varianceSign}${c.variance}%`;
+        });
+        
         charts.countryRSAT = new Chart(document.getElementById('countryRSATChart'), {
           type: 'bar',
           data: {
-            labels: countryData.map(c => `${c.name} (${c.count})`),
-            datasets: [{
-              label: 'RSAT %',
-              data: countryData.map(c => parseFloat(c.rsatPercent)),
-              backgroundColor: colorPalette,
-              borderRadius: 6,
-              barPercentage: 0.7
-            }]
+            labels: chartLabels,
+            datasets: [
+              {
+                label: 'Actual RSAT %',
+                data: countryData.map(c => parseFloat(c.rsatPercent)),
+                backgroundColor: countryData.map(c => 
+                  parseFloat(c.variance) >= 0 ? '#5f7daf' : '#c47b7b'
+                ),
+                borderRadius: 6,
+                barPercentage: 0.7
+              },
+              {
+                label: 'Baseline',
+                data: countryData.map(c => c.baseline),
+                type: 'line',
+                borderColor: '#ffffff',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false,
+                tension: 0
+              }
+            ]
           },
           options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: false },
+              legend: { 
+                labels: { color: '#ffffff' },
+                position: 'top'
+              },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                callbacks: {
+                  label: (context) => {
+                    const country = countryData[context.dataIndex];
+                    if (context.dataset.label === 'Actual RSAT %') {
+                      return [
+                        `RSAT: ${country.rsatPercent}%`,
+                        `Surveys: ${country.count}`,
+                        `Baseline: ${country.baseline}%`,
+                        `Variance: ${country.variance}%`
+                      ];
+                    } else {
+                      return `Baseline: ${country.baseline}%`;
+                    }
+                  }
+                }
+              },
               datalabels: {
                 anchor: 'end',
                 align: 'end',
-                formatter: (v) => v + '%',
+                formatter: (value, context) => {
+                  if (context.dataset.label === 'Actual RSAT %') {
+                    return value.toFixed(1) + '%';
+                  }
+                  return '';
+                },
                 color: '#ffffff',
                 font: { size: 9 }
               }
             },
             scales: { 
-              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
-              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+              x: { 
+                max: 100, 
+                grid: { color: '#363f4a' },
+                ticks: { color: '#ffffff' }
+              },
+              y: { 
+                ticks: { color: '#ffffff' },
+                grid: { display: false }
+              }
             }
           }
         });
       }
 
+      // ===========================================
       // Contact Reason - TOP 5
-      const reasonScores = calculateRSATScore(data, 'Contact_Reason');
+      // ===========================================
+      const reasonScores = calculateDimensionScores(data, 'Contact_Reason');
       const reasonsList = Object.entries(reasonScores)
         .filter(([name]) => name && name !== 'Unknown')
         .sort((a, b) => b[1].count - a[1].count)
@@ -1478,7 +1641,7 @@
 
       data.slice(0, 100).forEach(row => {
         const tr = document.createElement('tr');
-        const badgeClass = row.RSAT >= 4 ? 'badge-rsat' : (row.RSAT <= 3 && row.RSAT > 0 ? 'badge-dsat' : '');
+        const badgeClass = row.RSAT >= 4 ? 'badge-rsat' : (row.RSAT <= 3 && row.RSAT > 0 ? 'badge-dsat' : 'badge-neutral');
         
         // Format date to remove time if present
         let displayDate = row.Date || '-';
