@@ -8,81 +8,66 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Chart.js datalabels plugin from Cloudflare -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
-  <style><!-- Chart.js with fallback -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<!-- Chart.js datalabels plugin from Cloudflare -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 
-<!-- 🚨 EMERGENCY FIX FOR MOBILE - ADD THIS RIGHT HERE -->
-<script>
-  // Force Chart.js to load properly on mobile
-  window.onerror = function(msg, url, line) {
-    if (msg.includes('Chart') || (url && url.includes('chart.js'))) {
-      console.log('⚠️ Chart.js failed to load, using fallback...');
-      // Load Chart.js from a different CDN
-      var script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
-      document.head.appendChild(script);
-      
-      // Also load datalabels from backup
-      var labelsScript = document.createElement('script');
-      labelsScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js';
-      document.head.appendChild(labelsScript);
-      
-      setTimeout(function() {
-        if (typeof Chart !== 'undefined') {
-          console.log('✅ Fallback Chart.js loaded successfully');
-          // Try to register plugin
-          if (typeof ChartDataLabels !== 'undefined') {
-            Chart.register(ChartDataLabels);
+  <!-- 🚨 EMERGENCY FIX FOR MOBILE -->
+  <script>
+    // Force Chart.js to load properly on mobile
+    window.onerror = function(msg, url, line) {
+      if (msg.includes('Chart') || (url && url.includes('chart.js'))) {
+        console.log('⚠️ Chart.js failed to load, using fallback...');
+        var script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+        document.head.appendChild(script);
+        
+        var labelsScript = document.createElement('script');
+        labelsScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js';
+        document.head.appendChild(labelsScript);
+        
+        setTimeout(function() {
+          if (typeof Chart !== 'undefined') {
+            console.log('✅ Fallback Chart.js loaded');
+            if (typeof ChartDataLabels !== 'undefined') {
+              Chart.register(ChartDataLabels);
+            }
+            if (typeof allData !== 'undefined' && allData.length > 0 && typeof updateAllVisuals === 'function') {
+              updateAllVisuals();
+            }
           }
-          // Refresh charts if data exists
-          if (typeof allData !== 'undefined' && allData.length > 0 && typeof updateAllVisuals === 'function') {
-            updateAllVisuals();
-          }
-        } else {
-          console.log('❌ Still failed to load Chart.js');
-        }
-      }, 1500);
+        }, 1500);
+      }
+    };
+  </script>
+
+  <!-- Mobile detection -->
+  <script>
+    function isMobile() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
-  };
-</script>
-
-<!-- Mobile detection and helper -->
-<script>
-  // Check if device is mobile
-  function isMobile() {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  }
-  
-  // If mobile, add extra checks
-  if (isMobile()) {
-    console.log('📱 Mobile device detected');
-    // Preload Chart.js with DNS prefetch
-    var link = document.createElement('link');
-    link.rel = 'dns-prefetch';
-    link.href = 'https://cdnjs.cloudflare.com';
-    document.head.appendChild(link);
     
-    // Check if charts loaded after page load
-    window.addEventListener('load', function() {
-      setTimeout(function() {
-        if (typeof Chart === 'undefined') {
-          console.log('⚠️ Charts failed on mobile');
-          // Show warning but don't reload (prevents loop)
-          var warning = document.createElement('div');
-          warning.style.cssText = 'background: #856404; color: #fff3cd; padding: 15px; text-align: center; border-radius: 8px; margin: 10px;';
-          warning.innerHTML = '📱 Charts are loading slowly on mobile. Please wait or try desktop for better experience.';
-          document.querySelector('.chroma-container').prepend(warning);
-        }
-      }, 3000);
-    });
-  }
-</script>
+    if (isMobile()) {
+      console.log('📱 Mobile device detected');
+      var link = document.createElement('link');
+      link.rel = 'dns-prefetch';
+      link.href = 'https://cdnjs.cloudflare.com';
+      document.head.appendChild(link);
+      
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          if (typeof Chart === 'undefined') {
+            var warning = document.createElement('div');
+            warning.style.cssText = 'background: #856404; color: #fff3cd; padding: 15px; text-align: center; border-radius: 8px; margin: 10px;';
+            warning.innerHTML = '📱 Charts loading slowly on mobile. Please wait...';
+            document.querySelector('.chroma-container').prepend(warning);
+          }
+        }, 3000);
+      });
+    }
+  </script>
 
-<style>
-  /* Your existing styles continue here */
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  <!-- Favicon to prevent 404 -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+
+  <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
     * {
@@ -692,7 +677,7 @@
     }
 
     // ===========================================
-    // Load data from Apps Script
+    // Load data from Apps Script with PUBLIC PROXY
     // ===========================================
     async function loadFromGoogleSheets() {
       const statusEl = document.getElementById('sheetStatus');
@@ -703,18 +688,27 @@
       statusEl.className = 'ms-3 loading';
 
       try {
-        const response = await fetch(APPS_SCRIPT_URL + '?t=' + Date.now(), {
+        // Use public proxy that requires no signup
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const targetUrl = encodeURIComponent(APPS_SCRIPT_URL + '?t=' + Date.now());
+        
+        console.log('Fetching via proxy...');
+        
+        const response = await fetch(proxyUrl + targetUrl, {
           method: 'GET',
-          mode: 'cors',
-          cache: 'no-cache'
+          headers: {
+            'Content-Type': 'text/plain'
+          }
         });
         
         const csvText = await response.text();
+        console.log('Response received, length:', csvText.length);
         
         if (csvText.startsWith('Error:')) {
           throw new Error(csvText);
         }
 
+        // Parse CSV
         const lines = csvText.split('\n').filter(line => line.trim());
         if (lines.length < 2) {
           throw new Error('No data rows found');
@@ -775,6 +769,17 @@
         statusEl.innerHTML = `❌ Error: ${error.message}`;
         statusEl.style.color = '#f44336';
         statusEl.className = 'ms-3';
+        
+        // Show helpful message
+        const container = document.querySelector('.chroma-container');
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'background: #5a2d2d; color: #ff8a8a; padding: 20px; border-radius: 16px; margin: 20px 0; text-align: center;';
+        errorDiv.innerHTML = `
+          <strong>❌ Failed to load data</strong><br>
+          ${error.message}<br><br>
+          <button class="btn btn-outline-secondary" onclick="location.reload()">Retry</button>
+        `;
+        container.insertBefore(errorDiv, container.firstChild);
       } finally {
         loadBtn.disabled = false;
       }
@@ -814,7 +819,6 @@
     }
 
     function updateTeamStats(data) {
-      // Team stats implementation
       const leadTeams = {};
       const countryStats = {};
       
@@ -1371,8 +1375,7 @@
     });
 
     window.onload = function() {
-      
-();
+      loadFromGoogleSheets();
     };
   </script>
 </body>
