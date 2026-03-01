@@ -4,10 +4,85 @@
   <meta charset="UTF-8">
   <title>RSAT Dashboard HP</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <!-- Chart.js with fallback -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-  <style>
-    /* Keep your existing styles */
+  <!-- Chart.js datalabels plugin from Cloudflare -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+  <style><!-- Chart.js with fallback -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Chart.js datalabels plugin from Cloudflare -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+
+<!-- 🚨 EMERGENCY FIX FOR MOBILE - ADD THIS RIGHT HERE -->
+<script>
+  // Force Chart.js to load properly on mobile
+  window.onerror = function(msg, url, line) {
+    if (msg.includes('Chart') || (url && url.includes('chart.js'))) {
+      console.log('⚠️ Chart.js failed to load, using fallback...');
+      // Load Chart.js from a different CDN
+      var script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+      document.head.appendChild(script);
+      
+      // Also load datalabels from backup
+      var labelsScript = document.createElement('script');
+      labelsScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js';
+      document.head.appendChild(labelsScript);
+      
+      setTimeout(function() {
+        if (typeof Chart !== 'undefined') {
+          console.log('✅ Fallback Chart.js loaded successfully');
+          // Try to register plugin
+          if (typeof ChartDataLabels !== 'undefined') {
+            Chart.register(ChartDataLabels);
+          }
+          // Refresh charts if data exists
+          if (typeof allData !== 'undefined' && allData.length > 0 && typeof updateAllVisuals === 'function') {
+            updateAllVisuals();
+          }
+        } else {
+          console.log('❌ Still failed to load Chart.js');
+        }
+      }, 1500);
+    }
+  };
+</script>
+
+<!-- Mobile detection and helper -->
+<script>
+  // Check if device is mobile
+  function isMobile() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+  
+  // If mobile, add extra checks
+  if (isMobile()) {
+    console.log('📱 Mobile device detected');
+    // Preload Chart.js with DNS prefetch
+    var link = document.createElement('link');
+    link.rel = 'dns-prefetch';
+    link.href = 'https://cdnjs.cloudflare.com';
+    document.head.appendChild(link);
+    
+    // Check if charts loaded after page load
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        if (typeof Chart === 'undefined') {
+          console.log('⚠️ Charts failed on mobile');
+          // Show warning but don't reload (prevents loop)
+          var warning = document.createElement('div');
+          warning.style.cssText = 'background: #856404; color: #fff3cd; padding: 15px; text-align: center; border-radius: 8px; margin: 10px;';
+          warning.innerHTML = '📱 Charts are loading slowly on mobile. Please wait or try desktop for better experience.';
+          document.querySelector('.chroma-container').prepend(warning);
+        }
+      }, 3000);
+    });
+  }
+</script>
+
+<style>
+  /* Your existing styles continue here */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
     * {
@@ -506,6 +581,7 @@
               <th>Date</th>
               <th>Email</th>
               <th>Rider ID</th>
+              <th>Ticket ID</th>
               <th>LOB</th>
               <th>Contact Reason</th>
               <th>Local Reason</th>
@@ -524,9 +600,9 @@
     Chart.register(ChartDataLabels);
     
     // ===========================================
-    // ✅ YOUR APPS SCRIPT URL (from the test)
+    // ✅ YOUR APPS SCRIPT URL
     // ===========================================
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzfTbeaqqF-hJ7qEsOO8MZ6-eZssWMkJWZWRUT8dzvG8yICIGdgfjnSq9jrtokqDHWl/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNrriKJrTj6jgHR8BP-pR0cA2U-4Fbt02T9Gag8cKg_VcHRUzGA0Kj-kN76koO5GrW/exec';
     // ===========================================
     
     // Globals
@@ -534,7 +610,7 @@
     let filteredData = [];
     let charts = {};
     
-    // Country-specific baseline targets (from client dashboard)
+    // Country-specific baseline targets
     const COUNTRY_BASELINE = {
       'Iraq': 82.5,
       'Kuwait': 82.5,
@@ -582,7 +658,6 @@
       }
       values.push(currentValue);
       
-      // Clean up quotes
       return values.map(v => v.replace(/^"|"$/g, '').trim());
     }
 
@@ -599,7 +674,6 @@
       const num = parseFloat(match[0]);
       if (isNaN(num)) return 0;
       
-      // Round to nearest integer
       return Math.round(num);
     }
 
@@ -629,7 +703,6 @@
       statusEl.className = 'ms-3 loading';
 
       try {
-        // Add timestamp to prevent caching
         const response = await fetch(APPS_SCRIPT_URL + '?t=' + Date.now(), {
           method: 'GET',
           mode: 'cors',
@@ -642,41 +715,39 @@
           throw new Error(csvText);
         }
 
-        // Parse CSV
         const lines = csvText.split('\n').filter(line => line.trim());
         if (lines.length < 2) {
           throw new Error('No data rows found');
         }
 
-        // Parse headers
         const headers = parseCSVLine(lines[0]);
         
-        // Find column indices
         const dateIdx = headers.findIndex(h => h.toLowerCase().includes('date'));
         const emailIdx = headers.findIndex(h => h.toLowerCase().includes('email'));
+        const riderIdx = headers.findIndex(h => h.toLowerCase().includes('rider'));
+        const ticketIdx = headers.findIndex(h => h.toLowerCase().includes('ticket'));
+        const lobIdx = headers.findIndex(h => h.toLowerCase().includes('lob'));
+        const reasonIdx = headers.findIndex(h => h.toLowerCase().includes('contact') || h.toLowerCase().includes('reason'));
+        const localReasonIdx = headers.findIndex(h => h.toLowerCase().includes('local'));
         const rsatIdx = headers.findIndex(h => h.toLowerCase().includes('rsat'));
         const countryIdx = headers.findIndex(h => h.toLowerCase().includes('country'));
-        const lobIdx = headers.findIndex(h => h.toLowerCase().includes('lob'));
         const teamLeadIdx = headers.findIndex(h => h.toLowerCase().includes('team') && h.toLowerCase().includes('lead'));
-        const riderIdx = headers.findIndex(h => h.toLowerCase().includes('rider'));
-        const reasonIdx = headers.findIndex(h => h.toLowerCase().includes('reason'));
 
-        // Parse data rows
         allData = [];
         
         for (let i = 1; i < lines.length; i++) {
           const values = parseCSVLine(lines[i]);
-          
           const rsatValue = rsatIdx >= 0 ? parseRSATValue(values[rsatIdx]) : 0;
           
-          // Only include valid RSAT scores
           if (rsatValue >= 1 && rsatValue <= 5) {
             const row = {
               Date: dateIdx >= 0 ? values[dateIdx] || '' : '',
               email: emailIdx >= 0 ? values[emailIdx] || '' : '',
               'Rider ID': riderIdx >= 0 ? values[riderIdx] || '' : '',
+              'Ticket_id': ticketIdx >= 0 ? values[ticketIdx] || '' : '',
               LOB: lobIdx >= 0 ? values[lobIdx] || 'Unknown' : 'Unknown',
               Contact_Reason: reasonIdx >= 0 ? values[reasonIdx] || 'Unknown' : 'Unknown',
+              local_contact_reason: localReasonIdx >= 0 ? values[localReasonIdx] || '' : '',
               RSAT: rsatValue,
               country: countryIdx >= 0 ? values[countryIdx] || 'Unknown' : 'Unknown',
               'Team Lead': teamLeadIdx >= 0 ? values[teamLeadIdx] || 'Unknown' : 'Unknown'
@@ -696,10 +767,7 @@
         
         filteredData = [...allData];
         
-        // Populate agent selector
         populateAgentSelector();
-        
-        // Update visuals
         updateAllVisuals();
 
       } catch (error) {
@@ -712,7 +780,6 @@
       }
     }
 
-    // Populate agent selector
     function populateAgentSelector() {
       const agents = [...new Set(allData.map(row => row.email).filter(email => email))];
       const selector = document.getElementById('agentSelector');
@@ -726,14 +793,13 @@
       });
     }
 
-    // Calculate dimension scores
     function calculateDimensionScores(data, dimension) {
       const scores = {};
       data.forEach(row => {
         const key = row[dimension];
         if (key && key !== 'Unknown' && key !== 'null' && key !== '') {
           if (!scores[key]) {
-            scores[key] = { total: 0, count: 0, rsat: 0, dsat: 0 };
+            scores[key] = { count: 0, rsat: 0, dsat: 0 };
           }
           scores[key].count++;
           
@@ -747,26 +813,510 @@
       return scores;
     }
 
-    // Update all visuals
+    function updateTeamStats(data) {
+      // Team stats implementation
+      const leadTeams = {};
+      const countryStats = {};
+      
+      const countryNames = ['iraq', 'kuwait', 'oman', 'uae', 'saudi', 'qatar', 'bahrain', 'jordan', 'lebanon', 'egypt'];
+      
+      data.forEach(row => {
+        const lead = row['Team Lead'];
+        const agent = row.email;
+        const country = row.country;
+        
+        if (lead && agent && lead !== 'Unknown' && lead !== 'null' && lead !== '') {
+          const isCountry = countryNames.includes(lead.toLowerCase().trim());
+          
+          if (!isCountry) {
+            if (!leadTeams[lead]) {
+              leadTeams[lead] = new Set();
+            }
+            leadTeams[lead].add(agent);
+          } else {
+            if (!countryStats[lead]) {
+              countryStats[lead] = new Set();
+            }
+            countryStats[lead].add(agent);
+          }
+        }
+      });
+
+      const statsDiv = document.getElementById('teamStats');
+      statsDiv.innerHTML = '';
+      
+      if (Object.keys(leadTeams).length > 0) {
+        Object.entries(leadTeams).forEach(([lead, agents]) => {
+          const agentCount = agents.size;
+          const leadData = data.filter(r => r['Team Lead'] === lead);
+          const leadRSAT = leadData.filter(r => isRSAT(r.RSAT)).length;
+          const leadTotal = leadData.length;
+          const rsatPercent = leadTotal > 0 ? ((leadRSAT/leadTotal)*100).toFixed(1) : 0;
+          
+          const statItem = document.createElement('span');
+          statItem.style.cssText = 'background: #2a5f7a; padding: 6px 16px; border-radius: 30px; color: #ffffff; border: 1px solid #3f8bbf; margin-right: 8px;';
+          statItem.innerHTML = `👤 ${lead}: ${agentCount} agents · ${rsatPercent}% RSAT`;
+          statsDiv.appendChild(statItem);
+        });
+      }
+    }
+
+    function updateDateWiseAgentChart() {
+      const selectedAgent = document.getElementById('agentSelector').value;
+      
+      if (!selectedAgent || !filteredData.length) {
+        document.getElementById('agentDateRange').innerText = '';
+        return;
+      }
+
+      const agentData = filteredData.filter(row => row.email === selectedAgent);
+      
+      if (agentData.length === 0) {
+        document.getElementById('agentDateRange').innerText = 'No data for selected agent';
+        return;
+      }
+      
+      const dateGroups = {};
+      
+      agentData.forEach(row => {
+        if (!row.Date) return;
+        
+        const dateObj = parseDate(row.Date);
+        if (!dateObj) return;
+        
+        const dateStr = dateObj.toISOString().split('T')[0];
+        
+        if (!dateGroups[dateStr]) {
+          dateGroups[dateStr] = { count: 0, rsat: 0 };
+        }
+        dateGroups[dateStr].count++;
+        if (isRSAT(row.RSAT)) dateGroups[dateStr].rsat++;
+      });
+
+      const sortedDates = Object.keys(dateGroups).sort();
+      const rsatPercentByDate = sortedDates.map(date => 
+        ((dateGroups[date].rsat / dateGroups[date].count) * 100).toFixed(1)
+      );
+
+      const totalRSAT = agentData.filter(r => isRSAT(r.RSAT)).length;
+      const totalCount = agentData.length;
+      document.getElementById('agentOverallRSAT').innerText = `${((totalRSAT/totalCount)*100).toFixed(1)}%`;
+      document.getElementById('agentDateRange').innerHTML = `${sortedDates.length} days · ${agentData.length} interactions`;
+
+      if (charts.agentDateWise) charts.agentDateWise.destroy();
+
+      charts.agentDateWise = new Chart(document.getElementById('agentDateWiseChart'), {
+        type: 'line',
+        data: {
+          labels: sortedDates,
+          datasets: [{
+            label: 'RSAT %',
+            data: rsatPercentByDate,
+            borderColor: '#5f7daf',
+            backgroundColor: 'rgba(95, 125, 175, 0.1)',
+            borderWidth: 3,
+            tension: 0.3,
+            fill: true,
+            pointBackgroundColor: '#5f7daf',
+            pointBorderColor: '#ffffff',
+            pointRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e242c',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff'
+            },
+            datalabels: {
+              anchor: 'end',
+              align: 'end',
+              formatter: (value) => value + '%',
+              color: '#ffffff',
+              font: { size: 9 }
+            }
+          },
+          scales: {
+            y: {
+              min: 0,
+              max: 100,
+              grid: { color: '#363f4a' },
+              ticks: { color: '#ffffff', callback: (value) => value + '%' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#ffffff', maxRotation: 45 }
+            }
+          }
+        }
+      });
+    }
+
     function updateAllVisuals() {
       const data = filteredData;
       
-      // Calculate KPIs
+      updateTeamStats(data);
+      
       const total = data.length;
       const totalRSAT = data.filter(r => isRSAT(r.RSAT)).length;
       const totalDSAT = data.filter(r => isDSAT(r.RSAT)).length;
-      
-      const rsatPercent = total > 0 ? (totalRSAT / total * 100) : 0;
-      const dsatPercent = total > 0 ? (totalDSAT / total * 100) : 0;
+      const totalScore = data.reduce((sum, r) => sum + r.RSAT, 0);
       
       document.getElementById('kpiTotal').innerText = total;
-      document.getElementById('kpiRSAT').innerText = rsatPercent.toFixed(1) + '%';
-      document.getElementById('kpiDSAT').innerText = dsatPercent.toFixed(1) + '%';
-      document.getElementById('kpiAvg').innerText = (data.reduce((sum, r) => sum + r.RSAT, 0) / total).toFixed(1);
+      document.getElementById('kpiRSAT').innerText = ((totalRSAT/total)*100).toFixed(1) + '%';
+      document.getElementById('kpiDSAT').innerText = ((totalDSAT/total)*100).toFixed(1) + '%';
+      document.getElementById('kpiAvg').innerText = (totalScore/total).toFixed(1);
       document.getElementById('recordCount').innerText = `${total} records`;
 
-      // Update table
+      // Destroy existing charts
+      Object.keys(charts).forEach(key => {
+        if (key !== 'agentDateWise' && charts[key]) charts[key].destroy();
+      });
+
+      if (data.length === 0) return;
+
+      const getChartHeight = (itemCount) => Math.max(350, itemCount * 35);
+
+      // Agent chart
+      const agentScores = calculateDimensionScores(data, 'email');
+      const allAgents = Object.entries(agentScores)
+        .sort((a, b) => b[1].count - a[1].count)
+        .map(([name, data]) => ({
+          name: name.split('@')[0],
+          rsatPercent: ((data.rsat / data.count) * 100).toFixed(1),
+          count: data.count
+        }));
+
+      document.getElementById('agentCount').innerText = `(${allAgents.length} agents)`;
+      
+      if (allAgents.length > 0) {
+        document.getElementById('agentRSATChart').style.height = getChartHeight(allAgents.length) + 'px';
+        
+        charts.agentRSAT = new Chart(document.getElementById('agentRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: allAgents.map(a => `${a.name} (${a.count})`),
+            datasets: [{
+              label: 'RSAT %',
+              data: allAgents.map(a => parseFloat(a.rsatPercent)),
+              backgroundColor: colorPalette,
+              borderRadius: 6,
+              barPercentage: 0.7
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff'
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (v) => v + '%',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // LOB chart
+      const lobScores = calculateDimensionScores(data, 'LOB');
+      const lobData = Object.entries(lobScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .map(([name, data]) => ({
+          name,
+          rsatPercent: ((data.rsat / data.count) * 100).toFixed(1),
+          count: data.count
+        }));
+
+      document.getElementById('lobCount').innerText = `(${lobData.length} LOBs)`;
+      
+      if (lobData.length > 0) {
+        document.getElementById('lobRSATChart').style.height = getChartHeight(lobData.length) + 'px';
+        
+        charts.lobRSAT = new Chart(document.getElementById('lobRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: lobData.map(l => `${l.name} (${l.count})`),
+            datasets: [{
+              label: 'RSAT %',
+              data: lobData.map(l => parseFloat(l.rsatPercent)),
+              backgroundColor: colorPalette,
+              borderRadius: 6,
+              barPercentage: 0.7
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff'
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (v) => v + '%',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Team Lead chart
+      const leadScores = calculateDimensionScores(data, 'Team Lead');
+      const leadData = Object.entries(leadScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .map(([name, data]) => ({
+          name,
+          rsatPercent: ((data.rsat / data.count) * 100).toFixed(1),
+          count: data.count
+        }));
+
+      document.getElementById('leadCount').innerText = `(${leadData.length} leads)`;
+      
+      if (leadData.length > 0) {
+        document.getElementById('leadRSATChart').style.height = getChartHeight(leadData.length) + 'px';
+        
+        charts.leadRSAT = new Chart(document.getElementById('leadRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: leadData.map(l => `${l.name} (${l.count})`),
+            datasets: [{
+              label: 'RSAT %',
+              data: leadData.map(l => parseFloat(l.rsatPercent)),
+              backgroundColor: colorPalette,
+              borderRadius: 6,
+              barPercentage: 0.7
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff'
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (v) => v + '%',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Country chart
+      const countryScores = calculateDimensionScores(data, 'country');
+      
+      const countryData = Object.entries(countryScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .map(([name, data]) => {
+          const actualRsat = (data.rsat / data.count) * 100;
+          const baseline = COUNTRY_BASELINE[name] || COUNTRY_BASELINE.default;
+          return {
+            name,
+            rsatPercent: actualRsat.toFixed(1),
+            baseline,
+            count: data.count,
+            variance: (actualRsat - baseline).toFixed(1)
+          };
+        })
+        .sort((a, b) => b.count - a.count);
+
+      document.getElementById('countryCount').innerText = `(${countryData.length} countries)`;
+      
+      if (countryData.length > 0) {
+        document.getElementById('countryRSATChart').style.height = getChartHeight(countryData.length) + 'px';
+        
+        charts.countryRSAT = new Chart(document.getElementById('countryRSATChart'), {
+          type: 'bar',
+          data: {
+            labels: countryData.map(c => `${c.name} (${c.count}) ${parseFloat(c.variance)>=0?'+':''}${c.variance}%`),
+            datasets: [
+              {
+                label: 'Actual RSAT %',
+                data: countryData.map(c => parseFloat(c.rsatPercent)),
+                backgroundColor: countryData.map(c => parseFloat(c.variance) >= 0 ? '#5f7daf' : '#c47b7b'),
+                borderRadius: 6,
+                barPercentage: 0.7
+              },
+              {
+                label: 'Baseline',
+                data: countryData.map(c => c.baseline),
+                type: 'line',
+                borderColor: '#ffffff',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#ffffff' } },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff'
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (value, context) => context.dataset.label === 'Actual RSAT %' ? value.toFixed(1) + '%' : '',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: { 
+              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Contact Reasons chart
+      const reasonScores = calculateDimensionScores(data, 'Contact_Reason');
+      const reasonsList = Object.entries(reasonScores)
+        .filter(([name]) => name && name !== 'Unknown')
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 5);
+
+      document.getElementById('reasonCount').innerText = `Top 5 of ${Object.keys(reasonScores).length}`;
+      
+      if (reasonsList.length > 0) {
+        document.getElementById('reasonContributionChart').style.height = '350px';
+        
+        charts.reasonContribution = new Chart(document.getElementById('reasonContributionChart'), {
+          type: 'bar',
+          data: {
+            labels: reasonsList.map(r => r[0].substring(0, 25)),
+            datasets: [
+              {
+                label: 'Volume',
+                data: reasonsList.map(r => r[1].count),
+                backgroundColor: '#5f7daf',
+                borderRadius: 6,
+                barPercentage: 0.7
+              },
+              {
+                label: 'RSAT %',
+                data: reasonsList.map(r => (r[1].rsat / r[1].count * 100).toFixed(1)),
+                backgroundColor: '#c47b7b',
+                borderRadius: 6,
+                barPercentage: 0.7
+              }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#ffffff' } },
+              tooltip: {
+                backgroundColor: '#1e242c',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff'
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'end',
+                formatter: (value, context) => context.dataset.label === 'RSAT %' ? value + '%' : (value/1000).toFixed(1) + 'k',
+                color: '#ffffff',
+                font: { size: 9 }
+              }
+            },
+            scales: {
+              x: { grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
+              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Overall RSAT vs DSAT donut chart
+      if (charts.overallRSAT) charts.overallRSAT.destroy();
+
+      charts.overallRSAT = new Chart(document.getElementById('overallRSATChart'), {
+        type: 'doughnut',
+        data: {
+          labels: [`RSAT (${((totalRSAT/total)*100).toFixed(2)}%)`, `DSAT (${((totalDSAT/total)*100).toFixed(2)}%)`],
+          datasets: [{
+            data: [totalRSAT, totalDSAT],
+            backgroundColor: ['#5f7daf', '#c47b7b'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          cutout: '70%',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#ffffff' } },
+            tooltip: {
+              backgroundColor: '#1e242c',
+              titleColor: '#ffffff',
+              bodyColor: '#ffffff'
+            },
+            datalabels: {
+              color: '#ffffff',
+              font: { weight: '600', size: 12 },
+              formatter: (value, ctx) => {
+                const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                return ((value/total)*100).toFixed(2) + '%';
+              },
+              backgroundColor: 'rgba(30, 36, 44, 0.8)',
+              borderRadius: 12,
+              padding: { top: 4, bottom: 4, left: 8, right: 8 }
+            }
+          }
+        }
+      });
+
       updateTable(data);
+      updateDateWiseAgentChart();
     }
 
     function updateTable(data) {
@@ -781,20 +1331,27 @@
           <td>${row.Date || '-'}</td>
           <td>${row.email || '-'}</td>
           <td>${row['Rider ID'] || '-'}</td>
+          <td>${row['Ticket_id'] || '-'}</td>
           <td>${row.LOB || '-'}</td>
           <td>${row.Contact_Reason || '-'}</td>
-          <td>-</td>
+          <td>${row.local_contact_reason || '-'}</td>
           <td><span class="${badgeClass}">${row.RSAT || '-'}</span></td>
           <td>${row.country || '-'}</td>
           <td>${row['Team Lead'] || '-'}</td>`;
         tbody.appendChild(tr);
       });
+
+      if (data.length > 100) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="10" class="text-center">Showing first 100 of ${data.length} records</td>`;
+        tbody.appendChild(tr);
+      }
     }
 
     // Event listeners
     document.getElementById('loadSheetBtn').addEventListener('click', loadFromGoogleSheets);
+    
     document.getElementById('applyFilters').addEventListener('click', () => {
-      // Simple filter implementation
       const query = document.getElementById('search').value.toLowerCase();
       filteredData = allData.filter(row => 
         !query || row.email.toLowerCase().includes(query) || row.country.toLowerCase().includes(query)
@@ -810,11 +1367,12 @@
 
     document.getElementById('agentSelector').addEventListener('change', function(e) {
       document.getElementById('selectedAgentName').innerText = e.target.value || 'None';
+      updateDateWiseAgentChart();
     });
 
-    // Auto-load on page load
     window.onload = function() {
-      loadFromGoogleSheets();
+      
+();
     };
   </script>
 </body>
