@@ -679,7 +679,7 @@
     // ===========================================
     // Load data from Apps Script with PUBLIC PROXY
     // ===========================================
-    async function loadFromGoogleSheets() {
+    async function loadFromGoogleSheets(retryCount = 0) {
       const statusEl = document.getElementById('sheetStatus');
       const loadBtn = document.getElementById('loadSheetBtn');
       
@@ -688,23 +688,44 @@
       statusEl.className = 'ms-3 loading';
 
       try {
-        // Use public proxy that requires no signup
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        // Try different proxies if one fails
+        const proxies = [
+          'https://api.allorigins.win/raw?url=',
+          'https://corsproxy.io/?',
+          'https://thingproxy.freeboard.io/fetch/'
+        ];
+        
+        const proxyIndex = retryCount % proxies.length;
+        const proxyUrl = proxies[proxyIndex];
+        
         const targetUrl = encodeURIComponent(APPS_SCRIPT_URL + '?t=' + Date.now());
         
-        console.log('Fetching via proxy...');
+        console.log(`Fetching via proxy ${proxyIndex + 1}:`, proxyUrl);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
         
         const response = await fetch(proxyUrl + targetUrl, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'text/plain'
-          }
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         const csvText = await response.text();
         console.log('Response received, length:', csvText.length);
+        console.log('First 100 chars:', csvText.substring(0, 100));
         
         if (csvText.startsWith('Error:')) {
+          console.error('Error from server:', csvText);
+          
+          if (retryCount < 3) {
+            console.log(`Retrying with different proxy (attempt ${retryCount + 1})...`);
+            statusEl.innerHTML = `⏳ Retrying (attempt ${retryCount + 1})...`;
+            loadBtn.disabled = false;
+            return loadFromGoogleSheets(retryCount + 1);
+          }
+          
           throw new Error(csvText);
         }
 
@@ -714,8 +735,11 @@
           throw new Error('No data rows found');
         }
 
+        // Parse headers
         const headers = parseCSVLine(lines[0]);
-        
+        console.log('Headers found:', headers);
+
+        // Find column indices
         const dateIdx = headers.findIndex(h => h.toLowerCase().includes('date'));
         const emailIdx = headers.findIndex(h => h.toLowerCase().includes('email'));
         const riderIdx = headers.findIndex(h => h.toLowerCase().includes('rider'));
@@ -727,7 +751,11 @@
         const countryIdx = headers.findIndex(h => h.toLowerCase().includes('country'));
         const teamLeadIdx = headers.findIndex(h => h.toLowerCase().includes('team') && h.toLowerCase().includes('lead'));
 
+        console.log('Column indices:', { dateIdx, emailIdx, riderIdx, ticketIdx, lobIdx, reasonIdx, localReasonIdx, rsatIdx, countryIdx, teamLeadIdx });
+
+        // Parse data rows
         allData = [];
+        let invalidRows = 0;
         
         for (let i = 1; i < lines.length; i++) {
           const values = parseCSVLine(lines[i]);
@@ -748,8 +776,13 @@
             };
             
             allData.push(row);
+          } else {
+            invalidRows++;
           }
         }
+
+        console.log(`Loaded ${allData.length} valid records, filtered out ${invalidRows} invalid rows`);
+        console.log('Sample row:', allData[0]);
 
         if (allData.length === 0) {
           throw new Error('No valid data rows found');
@@ -766,11 +799,18 @@
 
       } catch (error) {
         console.error('Error:', error);
+        
+        if (error.name === 'AbortError') {
+          statusEl.innerHTML = '⏳ Request timeout, retrying...';
+          if (retryCount < 3) {
+            return loadFromGoogleSheets(retryCount + 1);
+          }
+        }
+        
         statusEl.innerHTML = `❌ Error: ${error.message}`;
         statusEl.style.color = '#f44336';
         statusEl.className = 'ms-3';
         
-        // Show helpful message
         const container = document.querySelector('.chroma-container');
         const errorDiv = document.createElement('div');
         errorDiv.style.cssText = 'background: #5a2d2d; color: #ff8a8a; padding: 20px; border-radius: 16px; margin: 20px 0; text-align: center;';
