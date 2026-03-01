@@ -290,21 +290,22 @@
       border: 1px solid #3f8bbf;
     }
 
-    .comparison-badge {
-      font-size: 0.7rem;
-      padding: 3px 8px;
-      border-radius: 20px;
-      margin-left: 5px;
-    }
-    
-    .above-baseline {
-      background: #2d5a3a;
-      color: #8bc34a;
-    }
-    
-    .below-baseline {
+    .error-message {
       background: #5a2d2d;
       color: #ff8a8a;
+      padding: 20px;
+      border-radius: 16px;
+      border: 1px solid #c47b7b;
+      margin: 20px 0;
+      text-align: center;
+    }
+
+    .warning-message {
+      background: #5a4d2d;
+      color: #ffd966;
+      padding: 10px;
+      border-radius: 8px;
+      margin: 10px 0;
     }
   </style>
 </head>
@@ -542,6 +543,7 @@
     let allData = [];
     let filteredData = [];
     let charts = {};
+    let isLoading = false;
     
     // Country-specific baseline targets (from client dashboard)
     const COUNTRY_BASELINE = {
@@ -566,13 +568,10 @@
 
     // ===========================================
     // RSAT Definition - CRITICAL: This must match client's definition
-    // Based on client dashboard showing:
-    // Iraq: 82.9% with baseline 82.5%
-    // This suggests they use exact integer scores (4 or 5 only)
+    // Based on client dashboard showing exact integer scores
     // ===========================================
     function isRSAT(score) {
       // Client uses exact 4 or 5 scores (no decimals)
-      // This matches the client dashboard showing 82.9% for Iraq
       return score === 4 || score === 5;
     }
 
@@ -588,42 +587,50 @@
       if (!dateStr) return null;
       dateStr = String(dateStr).trim();
       
-      // Handle "Thu Apr 02 2026 10:00:00 GMT+0300" format
-      if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.includes('(')) {
+      try {
+        // Handle "Thu Apr 02 2026 10:00:00 GMT+0300" format
+        if (dateStr.includes('GMT') || dateStr.includes('UTC') || dateStr.includes('(')) {
+          const date = new Date(dateStr);
+          if (!isNaN(date)) {
+            return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          }
+        }
+        
+        // Handle YYYY-MM-DD format (with or without time)
+        if (dateStr.includes('-')) {
+          const datePart = dateStr.split(' ')[0];
+          const parts = datePart.split('-');
+          if (parts.length === 3) {
+            let year = parseInt(parts[0]);
+            let month = parseInt(parts[1]) - 1;
+            let day = parseInt(parts[2]);
+            
+            if (year < 100) year = 2000 + year;
+            const date = new Date(year, month, day);
+            if (!isNaN(date)) return date;
+          }
+        }
+        
+        // Handle MM/DD/YYYY or M/D/YYYY format
+        if (dateStr.includes('/')) {
+          const parts = dateStr.split('/');
+          if (parts.length === 3) {
+            let month = parseInt(parts[0]) - 1;
+            let day = parseInt(parts[1]);
+            let year = parseInt(parts[2]);
+            
+            if (year < 100) year = 2000 + year;
+            const date = new Date(year, month, day);
+            if (!isNaN(date)) return date;
+          }
+        }
+        
         const date = new Date(dateStr);
-        // Return only the date part (YYYY-MM-DD)
-        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        return !isNaN(date) ? date : null;
+      } catch (e) {
+        console.warn('Error parsing date:', dateStr, e);
+        return null;
       }
-      
-      // Handle YYYY-MM-DD format (with or without time)
-      if (dateStr.includes('-')) {
-        // Split to get just the date part if there's time
-        const datePart = dateStr.split(' ')[0];
-        const parts = datePart.split('-');
-        if (parts.length === 3) {
-          let year = parseInt(parts[0]);
-          let month = parseInt(parts[1]) - 1; // JS months are 0-indexed
-          let day = parseInt(parts[2]);
-          
-          if (year < 100) year = 2000 + year;
-          return new Date(year, month, day);
-        }
-      }
-      
-      // Handle MM/DD/YYYY or M/D/YYYY format
-      if (dateStr.includes('/')) {
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-          let month = parseInt(parts[0]) - 1;
-          let day = parseInt(parts[1]);
-          let year = parseInt(parts[2]);
-          
-          if (year < 100) year = 2000 + year;
-          return new Date(year, month, day);
-        }
-      }
-      
-      return new Date(dateStr);
     }
 
     function formatDateForCompare(dateObj) {
@@ -637,40 +644,96 @@
     function parseRSATValue(value) {
       if (!value || value.trim() === '') return 0;
       
-      // Convert to string and clean
-      const str = String(value).trim();
+      try {
+        const str = String(value).trim();
+        
+        // Extract number from string (handles "4 - Satisfied", "4.5", etc.)
+        const match = str.match(/\d+(\.\d+)?/);
+        if (!match) return 0;
+        
+        const num = parseFloat(match[0]);
+        if (isNaN(num)) return 0;
+        
+        // Round to nearest integer to match client's exact 4 or 5 requirement
+        return Math.round(num);
+      } catch (e) {
+        console.warn('Error parsing RSAT value:', value, e);
+        return 0;
+      }
+    }
+
+    // ===========================================
+    // Load data with CORS handling
+    // ===========================================
+    async function fetchWithTimeout(url, timeout = 30000) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
       
-      // Extract number from string (handles "4 - Satisfied", "4.5", etc.)
-      const match = str.match(/\d+(\.\d+)?/);
-      if (!match) return 0;
-      
-      const num = parseFloat(match[0]);
-      if (isNaN(num)) return 0;
-      
-      // CRITICAL: Round to nearest integer to match client's exact 4 or 5 requirement
-      // Client dashboard shows 82.9% for Iraq, which suggests they use integer scores
-      return Math.round(num);
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          mode: 'cors',
+          credentials: 'omit',
+          headers: {
+            'Accept': 'text/csv, text/plain, */*'
+          }
+        });
+        clearTimeout(id);
+        return response;
+      } catch (error) {
+        clearTimeout(id);
+        throw error;
+      }
     }
 
     // ===========================================
     // Load data from secure Apps Script
     // ===========================================
     async function loadFromGoogleSheets() {
+      if (isLoading) return;
+      
       const statusEl = document.getElementById('sheetStatus');
+      const loadBtn = document.getElementById('loadSheetBtn');
+      
+      isLoading = true;
+      loadBtn.disabled = true;
       statusEl.innerHTML = '⏳ Loading data via secure API...';
       statusEl.className = 'ms-3 loading';
       statusEl.style.color = '#b9c4d4';
 
       try {
-        const response = await fetch(APPS_SCRIPT_URL);
-        const csvText = await response.text();
+        // Try multiple approaches to fetch data
+        let response;
+        let csvText;
         
-        if (csvText.startsWith('Error:')) {
-          throw new Error(csvText);
+        // Approach 1: Direct fetch with CORS
+        try {
+          response = await fetchWithTimeout(APPS_SCRIPT_URL);
+          csvText = await response.text();
+        } catch (fetchError) {
+          console.warn('Direct fetch failed, trying JSONP approach:', fetchError);
+          
+          // Approach 2: Try with no-cors mode
+          try {
+            response = await fetch(APPS_SCRIPT_URL, {
+              mode: 'no-cors',
+              headers: {
+                'Accept': 'text/csv, text/plain, */*'
+              }
+            });
+            csvText = await response.text();
+          } catch (noCorsError) {
+            console.warn('No-CORS fetch failed:', noCorsError);
+            throw new Error('Unable to load data due to CORS. Please check your Apps Script deployment.');
+          }
         }
 
         if (!csvText || csvText.length < 10) {
           throw new Error('No data received from sheet');
+        }
+
+        if (csvText.startsWith('Error:') || csvText.startsWith('<!DOCTYPE')) {
+          throw new Error('Invalid response from server');
         }
 
         console.log('Received CSV data, length:', csvText.length);
@@ -699,8 +762,6 @@
         const countryIdx = headers.findIndex(h => h.toLowerCase().includes('country'));
         const teamLeadIdx = headers.findIndex(h => h.toLowerCase().includes('team') && h.toLowerCase().includes('lead'));
 
-        console.log('Column indices:', { dateIdx, emailIdx, riderIdx, lobIdx, reasonIdx, localIdx, rsatIdx, countryIdx, teamLeadIdx });
-
         // Parse data rows
         allData = [];
         let invalidRows = 0;
@@ -725,7 +786,7 @@
           }
           values.push(currentValue.replace(/^"|"$/g, '').trim());
 
-          // Parse RSAT value (now returns rounded integer)
+          // Parse RSAT value
           const rsatValue = rsatIdx >= 0 ? parseRSATValue(values[rsatIdx]) : 0;
           
           // Create row object
@@ -755,10 +816,7 @@
 
         console.log(`Loaded ${allData.length} valid records, filtered out ${invalidRows} invalid rows`);
         
-        // Log sample of parsed data to verify
-        console.log('Sample of parsed data (first 5 rows):', allData.slice(0, 5));
-        
-        statusEl.innerHTML = `✅ Successfully loaded ${allData.length} valid records via secure API`;
+        statusEl.innerHTML = `✅ Successfully loaded ${allData.length} valid records`;
         statusEl.style.color = '#4caf50';
         statusEl.className = 'ms-3';
         
@@ -776,7 +834,26 @@
         statusEl.style.color = '#f44336';
         statusEl.className = 'ms-3';
         
-        alert('Failed to load sheet. Check console for details.\n\nError: ' + error.message);
+        // Show user-friendly error message
+        const container = document.querySelector('.chroma-container');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.innerHTML = `
+          <strong>Failed to load data</strong><br>
+          ${error.message}<br><br>
+          Please check:
+          <ul style="text-align: left; margin-top: 10px;">
+            <li>Your Apps Script is deployed as "Web App" with "Anyone" access</li>
+            <li>The URL is correct</li>
+            <li>You have internet connection</li>
+          </ul>
+          <button class="btn btn-outline-secondary mt-3" onclick="location.reload()">Retry</button>
+        `;
+        container.insertBefore(errorDiv, container.firstChild);
+        
+      } finally {
+        isLoading = false;
+        loadBtn.disabled = false;
       }
     }
 
@@ -870,15 +947,12 @@
         if (startDate || endDate) {
           if (!row.Date) return false;
           
-          // Parse the row date
           const rowDate = parseDate(row.Date);
           if (!rowDate || isNaN(rowDate)) return false;
           
-          // Parse filter dates
           const start = startDate ? new Date(startDate) : null;
           const end = endDate ? new Date(endDate) : null;
           
-          // Set time to midnight for proper date comparison
           if (start) start.setHours(0, 0, 0, 0);
           if (end) end.setHours(23, 59, 59, 999);
           
@@ -905,7 +979,6 @@
           scores[key].total += row.RSAT;
           scores[key].count++;
           
-          // Use the same RSAT definition everywhere
           if (isRSAT(row.RSAT)) {
             scores[key].rsat++;
           } else if (isDSAT(row.RSAT)) {
@@ -917,13 +990,12 @@
     }
 
     // ===========================================
-    // Team Stats - Separates leads from countries
+    // Team Stats
     // ===========================================
     function updateTeamStats(data) {
       const leadTeams = {};
       const countryStats = {};
       
-      // List of country names to filter out
       const countryNames = ['iraq', 'kuwait', 'oman', 'uae', 'saudi', 'qatar', 'bahrain', 'jordan', 'lebanon', 'egypt', 'morocco', 'algeria', 'tunisia', 'libya', 'sudan', 'yemen', 'syria', 'palestine'];
       
       data.forEach(row => {
@@ -931,19 +1003,15 @@
         const agent = row.email;
         const country = row.country;
         
-        // Separate team leads from countries
         if (lead && agent && lead !== 'Unknown' && lead !== 'null' && lead !== '') {
-          // Check if this is actually a country name
           const isCountry = countryNames.includes(lead.toLowerCase().trim());
           
           if (!isCountry) {
-            // It's a real team lead
             if (!leadTeams[lead]) {
               leadTeams[lead] = new Set();
             }
             leadTeams[lead].add(agent);
           } else {
-            // It's a country mislabeled as team lead
             if (!countryStats[lead]) {
               countryStats[lead] = new Set();
             }
@@ -955,7 +1023,6 @@
       const statsDiv = document.getElementById('teamStats');
       statsDiv.innerHTML = '';
       
-      // Display team leads first
       if (Object.keys(leadTeams).length > 0) {
         Object.entries(leadTeams).forEach(([lead, agents]) => {
           const agentCount = agents.size;
@@ -972,7 +1039,6 @@
         });
       }
       
-      // Display countries separately
       if (Object.keys(countryStats).length > 0) {
         Object.entries(countryStats).forEach(([country, agents]) => {
           const agentCount = agents.size;
@@ -995,7 +1061,7 @@
     }
 
     // ===========================================
-    // Agent chart shows all dates
+    // Agent date-wise chart
     // ===========================================
     function updateDateWiseAgentChart() {
       const selectedAgent = document.getElementById('agentSelector').value;
@@ -1005,7 +1071,6 @@
         return;
       }
 
-      // Get agent's data
       const agentData = filteredData.filter(row => row.email === selectedAgent);
       
       if (agentData.length === 0) {
@@ -1013,20 +1078,14 @@
         return;
       }
       
-      // Group by date and calculate average RSAT
       const dateGroups = {};
       
       agentData.forEach(row => {
         if (!row.Date) return;
         
-        // Parse the date consistently
         const dateObj = parseDate(row.Date);
-        if (!dateObj || isNaN(dateObj)) {
-          console.log('Invalid date:', row.Date);
-          return;
-        }
+        if (!dateObj || isNaN(dateObj)) return;
         
-        // Format date as YYYY-MM-DD consistently
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const day = String(dateObj.getDate()).padStart(2, '0');
@@ -1040,28 +1099,22 @@
         if (isRSAT(row.RSAT)) dateGroups[dateStr].rsat++;
       });
 
-      // Sort dates chronologically
-      const sortedDates = Object.keys(dateGroups).sort((a, b) => {
-        return new Date(a) - new Date(b);
-      });
+      const sortedDates = Object.keys(dateGroups).sort((a, b) => new Date(a) - new Date(b));
 
-      // Calculate RSAT percentage (not average score)
       const rsatPercentByDate = sortedDates.map(date => 
         dateGroups[date].count > 0 ? ((dateGroups[date].rsat / dateGroups[date].count) * 100).toFixed(1) : 0
       );
 
-      // Update overall RSAT badge
       const totalRSAT = agentData.filter(r => isRSAT(r.RSAT)).length;
       const totalCount = agentData.length;
       const overallPercent = totalCount > 0 ? (totalRSAT / totalCount * 100).toFixed(1) : 0;
+      
       document.getElementById('agentOverallRSAT').innerText = `${overallPercent}%`;
       document.getElementById('agentDateRange').innerHTML = 
         `${sortedDates.length} days · ${agentData.length} interactions`;
 
-      // Destroy existing chart if any
       if (charts.agentDateWise) charts.agentDateWise.destroy();
 
-      // Create new date-wise chart with RSAT percentages
       charts.agentDateWise = new Chart(document.getElementById('agentDateWiseChart'), {
         type: 'line',
         data: {
@@ -1142,29 +1195,23 @@
     function updateAllVisuals() {
       const data = filteredData;
       
-      // Update team stats
       updateTeamStats(data);
       
-      // Calculate actual RSAT and DSAT from data using consistent definition
       const total = data.length;
       const totalRSAT = data.filter(r => isRSAT(r.RSAT)).length;
       const totalDSAT = data.filter(r => isDSAT(r.RSAT)).length;
       const totalScore = data.reduce((sum, r) => sum + (r.RSAT || 0), 0);
       
-      // Calculate percentages
       const rsatPercent = total > 0 ? (totalRSAT / total * 100) : 0;
       const dsatPercent = total > 0 ? (totalDSAT / total * 100) : 0;
       const avgScore = total > 0 ? (totalScore / total).toFixed(1) : 0;
       
-      // Update KPI cards with ACTUAL data
       document.getElementById('kpiTotal').innerText = total;
       document.getElementById('kpiRSAT').innerText = rsatPercent.toFixed(1) + '%';
       document.getElementById('kpiDSAT').innerText = dsatPercent.toFixed(1) + '%';
       document.getElementById('kpiAvg').innerText = avgScore;
-      
       document.getElementById('recordCount').innerText = `${total} records`;
 
-      // Destroy existing charts (except agent date-wise)
       Object.keys(charts).forEach(key => {
         if (key !== 'agentDateWise' && charts[key]) charts[key].destroy();
       });
@@ -1173,9 +1220,7 @@
 
       const getChartHeight = (itemCount) => Math.max(350, itemCount * 35);
 
-      // ===========================================
-      // Agent chart with RSAT%
-      // ===========================================
+      // Agent chart
       const agentScores = calculateDimensionScores(data, 'email');
       const allAgents = Object.entries(agentScores)
         .sort((a, b) => b[1].count - a[1].count)
@@ -1248,9 +1293,7 @@
         });
       }
 
-      // ===========================================
-      // LOB chart with RSAT%
-      // ===========================================
+      // LOB chart
       const lobScores = calculateDimensionScores(data, 'LOB');
       const lobData = Object.entries(lobScores)
         .filter(([name]) => name && name !== 'Unknown')
@@ -1313,9 +1356,7 @@
         });
       }
 
-      // ===========================================
-      // Team Lead chart with RSAT%
-      // ===========================================
+      // Team Lead chart
       const leadScores = calculateDimensionScores(data, 'Team Lead');
       const leadData = Object.entries(leadScores)
         .filter(([name]) => name && name !== 'Unknown')
@@ -1378,18 +1419,13 @@
         });
       }
 
-      // ===========================================
-      // Country chart with RSAT% - COMPARED TO CLIENT BASELINES
-      // ===========================================
+      // Country chart
       const countryScores = calculateDimensionScores(data, 'country');
       
-      // Get all countries and calculate their RSAT%
       const countryData = Object.entries(countryScores)
         .filter(([name]) => name && name !== 'Unknown' && name !== 'null' && name.trim() !== '')
         .map(([name, data]) => {
           const actualRsat = data.count > 0 ? (data.rsat / data.count * 100) : 0;
-          
-          // Use country-specific baseline
           const countryBaseline = COUNTRY_BASELINE[name] || COUNTRY_BASELINE.default;
           
           return {
@@ -1398,18 +1434,16 @@
             actualRsat: actualRsat,
             baseline: countryBaseline,
             count: data.count,
-            // Calculate variance from baseline
             variance: (actualRsat - countryBaseline).toFixed(1)
           };
         })
-        .sort((a, b) => b.count - a.count); // Sort by volume
+        .sort((a, b) => b.count - a.count);
 
       document.getElementById('countryCount').innerText = `(${countryData.length} countries)`;
       
       if (countryData.length > 0) {
         document.getElementById('countryRSATChart').style.height = getChartHeight(countryData.length) + 'px';
         
-        // Create custom labels with variance indicators
         const chartLabels = countryData.map(c => {
           const variance = parseFloat(c.variance);
           const varianceSign = variance > 0 ? '+' : '';
@@ -1499,9 +1533,7 @@
         });
       }
 
-      // ===========================================
-      // Contact Reason - TOP 5
-      // ===========================================
+      // Contact Reasons chart
       const reasonScores = calculateDimensionScores(data, 'Contact_Reason');
       const reasonsList = Object.entries(reasonScores)
         .filter(([name]) => name && name !== 'Unknown')
@@ -1593,9 +1625,7 @@
         });
       }
 
-      // ===========================================
-      // Overall RSAT vs DSAT - Using ACTUAL data
-      // ===========================================
+      // Overall RSAT vs DSAT donut chart
       if (charts.overallRSAT) charts.overallRSAT.destroy();
 
       charts.overallRSAT = new Chart(document.getElementById('overallRSATChart'), {
@@ -1667,11 +1697,16 @@
         const tr = document.createElement('tr');
         const badgeClass = isRSAT(row.RSAT) ? 'badge-rsat' : (isDSAT(row.RSAT) ? 'badge-dsat' : 'badge-neutral');
         
-        // Format date to remove time if present
         let displayDate = row.Date || '-';
         if (displayDate.includes('GMT') || displayDate.includes('UTC') || displayDate.includes('(')) {
-          const dateObj = new Date(displayDate);
-          displayDate = dateObj.toLocaleDateString();
+          try {
+            const dateObj = new Date(displayDate);
+            if (!isNaN(dateObj)) {
+              displayDate = dateObj.toLocaleDateString();
+            }
+          } catch (e) {
+            // Keep original if parsing fails
+          }
         }
         
         tr.innerHTML = `
@@ -1697,13 +1732,19 @@
     // Initialize empty charts
     window.onload = function() {
       ['agentRSATChart', 'lobRSATChart', 'leadRSATChart', 'countryRSATChart', 'reasonContributionChart', 'overallRSATChart', 'agentDateWiseChart'].forEach(id => {
-        const ctx = document.getElementById(id).getContext('2d');
-        charts[id] = new Chart(ctx, { 
-          type: 'bar', 
-          data: { labels: ['No data'], datasets: [{ data: [0] }] },
-          options: { maintainAspectRatio: false }
-        });
+        const canvas = document.getElementById(id);
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          charts[id] = new Chart(ctx, { 
+            type: 'bar', 
+            data: { labels: ['No data'], datasets: [{ data: [0] }] },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false } } }
+          });
+        }
       });
+      
+      // Auto-load data when page loads
+      setTimeout(() => loadFromGoogleSheets(), 500);
     };
   </script>
 </body>
