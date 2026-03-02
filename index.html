@@ -2,69 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>RSAT Dashboard HP</title>
+  <title>Demand Generation Dashboard</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-  <!-- Chart.js with fallback -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- Chart.js datalabels plugin from Cloudflare -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
-
-  <!-- 🚨 EMERGENCY FIX FOR MOBILE -->
-  <script>
-    window.onerror = function(msg, url, line) {
-      if (msg.includes('Chart') || (url && url.includes('chart.js'))) {
-        console.log('⚠️ Chart.js failed to load, using fallback...');
-        var script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
-        document.head.appendChild(script);
-        
-        var labelsScript = document.createElement('script');
-        labelsScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js';
-        document.head.appendChild(labelsScript);
-        
-        setTimeout(function() {
-          if (typeof Chart !== 'undefined') {
-            console.log('✅ Fallback Chart.js loaded');
-            if (typeof ChartDataLabels !== 'undefined') {
-              Chart.register(ChartDataLabels);
-            }
-            if (typeof allData !== 'undefined' && allData.length > 0 && typeof updateAllVisuals === 'function') {
-              updateAllVisuals();
-            }
-          }
-        }, 1500);
-      }
-    };
-  </script>
-
-  <!-- Mobile detection -->
-  <script>
-    function isMobile() {
-      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    }
-    
-    if (isMobile()) {
-      console.log('📱 Mobile device detected');
-      var link = document.createElement('link');
-      link.rel = 'dns-prefetch';
-      link.href = 'https://cdnjs.cloudflare.com';
-      document.head.appendChild(link);
-      
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          if (typeof Chart === 'undefined') {
-            var warning = document.createElement('div');
-            warning.style.cssText = 'background: #856404; color: #fff3cd; padding: 15px; text-align: center; border-radius: 8px; margin: 10px;';
-            warning.innerHTML = '📱 Charts loading slowly on mobile. Please wait...';
-            document.querySelector('.chroma-container').prepend(warning);
-          }
-        }, 3000);
-      });
-    }
-  </script>
-
-  <!-- Favicon to prevent 404 -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -76,1462 +18,630 @@
     }
 
     body { 
-      background: #1a1e24;
+      background: #F5F7FA;
       font-family: 'Inter', sans-serif;
-      min-height: 100vh;
       padding: 20px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    .chroma-container {
-      background: #222831;
-      border-radius: 32px;
-      padding: 30px;
-      box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
-      border: 1px solid #2d343d;
+    .dashboard-container {
       max-width: 1800px;
       margin: 0 auto;
+      contain: content;
     }
 
-    h3, .card-title, .filter-label, .kpi-label {
-      font-weight: 500;
-      letter-spacing: 0.02em;
-    }
-
-    .card-chart { 
-      background: #2a303a;
-      border-radius: 24px; 
-      padding: 1.5rem; 
-      box-shadow: 0 15px 30px -12px rgba(0, 0, 0, 0.5);
-      margin-bottom: 20px; 
-      height: 100%;
-      transition: all 0.3s ease;
-      border: 1px solid #363f4a;
-    }
-
-    .card-chart:hover {
-      transform: translateY(-2px);
-      border-color: #5f6b7a;
-    }
-
-    .card-title { 
-      font-size: 1.1rem; 
-      font-weight: 500; 
-      color: #ffffff;
-      margin-bottom: 20px; 
-      padding-bottom: 12px; 
-      border-bottom: 1px solid #363f4a; 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .card-title span { 
-      font-size: 0.75rem; 
-      font-weight: 400; 
-      background: #1e242c;
-      padding: 5px 12px;
-      border-radius: 30px;
-      color: #b9c4d4;
-      border: 1px solid #414e5c;
-    }
-
-    .chart-scroll-container { 
-      max-height: 400px; 
-      overflow-y: auto; 
-      overflow-x: hidden; 
-      padding-right: 10px; 
-      scrollbar-width: thin; 
-      scrollbar-color: #5f6b7a #2a303a; 
-    }
-
-    .chart-scroll-container::-webkit-scrollbar { width: 5px; }
-    .chart-scroll-container::-webkit-scrollbar-track { background: #2a303a; border-radius: 10px; }
-    .chart-scroll-container::-webkit-scrollbar-thumb { 
-      background: #5f6b7a;
-      border-radius: 10px; 
-    }
-
-    canvas { max-height: none; width: 100% !important; min-height: 250px; }
-
-    .filter-panel { 
-      background: #2a303a;
-      border-radius: 28px; 
-      padding: 1.5rem; 
-      margin: 20px 0; 
-      box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.5); 
-      border: 1px solid #363f4a;
-    }
-
-    .filter-panel select, .filter-panel input {
-      background: #1e242c !important;
-      border: 1px solid #3f4a57 !important;
-      border-radius: 40px !important;
-      color: #ffffff !important;
-      font-size: 0.9rem;
-      padding: 10px 16px !important;
-      width: 100%;
-    }
-
-    .filter-panel select:focus, .filter-panel input:focus {
-      border-color: #7f8c9d !important;
-      box-shadow: 0 0 0 3px rgba(127, 140, 157, 0.25) !important;
-    }
-
-    .badge-rsat { 
-      background: #5f7daf;
-      color: #ffffff; 
-      font-weight: 500; 
-      padding: 5px 12px; 
-      border-radius: 30px; 
-      font-size: 0.75rem;
-      border: 1px solid #7f9ed5;
-      display: inline-block;
-    }
-
-    .badge-dsat { 
-      background: #c47b7b;
-      color: #ffffff; 
-      font-weight: 500; 
-      padding: 5px 12px; 
-      border-radius: 30px; 
-      font-size: 0.75rem;
-      border: 1px solid #e09f9f;
-      display: inline-block;
-    }
-
-    .badge-neutral { 
-      background: #5f6b7a;
-      color: #ffffff; 
-      font-weight: 500; 
-      padding: 5px 12px; 
-      border-radius: 30px; 
-      font-size: 0.75rem;
-      border: 1px solid #7f8c9d;
-      display: inline-block;
-    }
-
-    .kpi-box { 
-      background: #2a303a;
-      border-radius: 24px; 
-      padding: 20px 15px; 
-      text-align: center; 
-      box-shadow: 0 15px 30px -12px rgba(0, 0, 0, 0.5); 
-      border: 1px solid #363f4a;
-    }
-
-    .kpi-value { 
-      font-size: 2.5rem; 
-      font-weight: 600; 
-      color: #ffffff;
-      line-height: 1.2;
-    }
-
-    .kpi-label { 
-      font-size: 0.8rem; 
-      color: #b9c4d4;
-      text-transform: uppercase; 
-      margin-top: 8px;
-    }
-
-    .filter-label { 
-      font-size: 0.7rem; 
-      font-weight: 500; 
-      text-transform: uppercase; 
-      color: #b9c4d4; 
-      margin-bottom: 6px;
-      letter-spacing: 1px;
-    }
-
-    .btn-outline-secondary {
-      background: transparent;
-      border: 1px solid #4d5a68;
-      color: #ffffff;
-      font-weight: 400;
-      padding: 10px 20px;
-      transition: all 0.3s ease;
-      border-radius: 40px;
-      cursor: pointer;
-    }
-
-    .btn-outline-secondary:hover {
-      background: #3f4a57;
-      border-color: #7f8c9d;
-      color: #ffffff;
+    /* Header */
+    .dashboard-header {
+      background: white;
+      border-radius: 24px;
+      padding: 20px 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-left: 6px solid #A05AFF;
+      transform: translateZ(0);
+      backface-visibility: hidden;
     }
 
     h3 {
-      color: #ffffff;
-      font-weight: 500;
-      font-size: 1.8rem;
-      letter-spacing: 1px;
+      color: #2D3A45;
+      font-weight: 600;
+      margin: 0;
     }
 
-    .table { 
-      background: #000000;
-      border-radius: 24px; 
-      overflow: hidden; 
-      border: 1px solid #363f4a;
-      color: #ffffff;
-      width: 100%;
-    }
-
-    .table thead { 
-      background: #0a0c0f;
-      border-bottom: 2px solid #363f4a; 
-    }
-
-    .table th {
-      padding: 15px 12px;
-      color: #ffffff;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .table td {
-      padding: 12px;
-      border-bottom: 1px solid #1f2a35;
-      color: #ffffff;
-      background: #000000;
-    }
-
-    .agent-selector {
-      background: #1e242c;
-      border: 1px solid #363f4a;
-      color: #ffffff;
-      padding: 12px;
-      border-radius: 40px;
-      width: 100%;
-      margin-bottom: 20px;
-    }
-
-    .status-badge {
-      padding: 5px 10px;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      background: #2a303a;
-      color: #b9c4d4;
-    }
-
-    .top-reasons-badge { 
-      background: #5f7daf;
-      color: #ffffff;
-      padding: 4px 12px;
-      border-radius: 30px;
-      font-size: 0.7rem;
-      border: 1px solid #7f9ed5;
-    }
-
-    #sheetStatus {
-      margin-left: 15px;
-      font-size: 0.9rem;
-    }
-
-    .loading {
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.5; }
-      100% { opacity: 1; }
-    }
-    
     .secure-badge {
-      background: #2a5f7a;
+      background: #A05AFF;
       color: white;
       padding: 5px 15px;
       border-radius: 40px;
       font-size: 0.8rem;
-      display: inline-block;
       margin-left: 15px;
-      border: 1px solid #3f8bbf;
+      display: inline-block;
     }
 
-    .error-message {
-      background: #5a2d2d;
-      color: #ff8a8a;
+    /* Filter Panel */
+    .filter-panel {
+      background: white;
+      border-radius: 20px;
       padding: 20px;
-      border-radius: 16px;
-      border: 1px solid #c47b7b;
-      margin: 20px 0;
-      text-align: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      transform: translateZ(0);
     }
+
+    .filter-item {
+      flex: 1;
+      min-width: 150px;
+    }
+
+    .filter-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #6B7A8D;
+      margin-bottom: 5px;
+    }
+
+    .filter-select, .filter-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #E9EDF2;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      color: #2D3A45;
+      background: white;
+    }
+
+    .date-range {
+      display: flex;
+      gap: 10px;
+    }
+
+    .date-range .filter-select {
+      flex: 1;
+    }
+
+    .btn-apply {
+      background: #A05AFF;
+      color: white;
+      border: none;
+      padding: 10px 25px;
+      border-radius: 40px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .btn-apply:hover {
+      background: #8A3FE0;
+    }
+
+    .btn-reset {
+      background: white;
+      color: #6B7A8D;
+      border: 1px solid #E9EDF2;
+      padding: 10px 25px;
+      border-radius: 40px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-reset:hover {
+      background: #F5F7FA;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 20px;
+      min-height: 140px;
+    }
+
+    .kpi-card {
+      background: white;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-top: 4px solid #A05AFF;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    .kpi-value {
+      font-size: 2rem;
+      font-weight: 600;
+      color: #2D3A45;
+      line-height: 1.2;
+    }
+
+    .kpi-label {
+      color: #6B7A8D;
+      font-size: 0.9rem;
+      margin-top: 5px;
+    }
+
+    .kpi-trend {
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
+
+    .trend-up { color: #1BCFB4; }
+    .trend-down { color: #FE9496; }
+
+    /* Charts Grid */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-bottom: 20px;
+      min-height: 320px;
+    }
+
+    .chart-card {
+      background: white;
+      border-radius: 24px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    .chart-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #2D3A45;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #E9EDF2;
+    }
+
+    .chart-container {
+      height: 250px;
+      width: 100%;
+      position: relative;
+      contain: strict;
+    }
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    /* Traffic Sources */
+    .traffic-sources {
+      background: white;
+      border-radius: 24px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .source-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .source-label {
+      width: 120px;
+      color: #6B7A8D;
+    }
+
+    .source-bar {
+      flex: 1;
+      height: 12px;
+      background: #E9EDF2;
+      border-radius: 20px;
+      margin: 0 15px;
+      overflow: hidden;
+    }
+
+    .source-fill {
+      height: 100%;
+      border-radius: 20px;
+      transition: width 0.3s ease;
+    }
+
+    .source-value {
+      width: 60px;
+      font-weight: 600;
+      color: #2D3A45;
+    }
+
+    /* Table */
+    .table-container {
+      background: white;
+      border-radius: 24px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      transform: translateZ(0);
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .table th {
+      text-align: left;
+      padding: 15px 10px;
+      background: #F5F7FA;
+      color: #2D3A45;
+      font-size: 0.8rem;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .table td {
+      padding: 12px 10px;
+      border-bottom: 1px solid #E9EDF2;
+      color: #2D3A45;
+    }
+
+    /* Priority badges */
+    .priority-badge {
+      padding: 3px 10px;
+      border-radius: 20px;
+      color: white;
+      font-size: 0.8rem;
+      display: inline-block;
+    }
+
+    .priority-high { background: #A05AFF; }
+    .priority-medium { background: #FE9496; }
+    .priority-low { background: #1BCFB4; }
+
+    /* Loading state */
+    .loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    /* Color classes */
+    .purple { background: #A05AFF; }
+    .teal { background: #1BCFB4; }
+    .coral { background: #FE9496; }
+    .blue { background: #4BCBEB; }
+    .purple-shade { background: #9E58FF; }
   </style>
 </head>
 <body>
-  <div class="chroma-container">
+  <div class="dashboard-container">
     <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mt-2 mb-4">
-      <h3>RSAT Dashboard HP <span class="secure-badge">🔒 Private Sheet</span></h3>
-    </div>
-
-    <!-- Sheet Controls -->
-    <div class="row mb-4">
-      <div class="col-12 d-flex align-items-center">
-        <button class="btn btn-outline-secondary" id="loadSheetBtn">📊 Load Data from Secure API</button>
-        <span id="sheetStatus" class="ms-3"></span>
+    <div class="dashboard-header d-flex justify-content-between align-items-center">
+      <div>
+        <h3>📈 Demand Generation Dashboard <span class="secure-badge">🔒 Live Data</span></h3>
+        <p style="color: #6B7A8D; margin: 5px 0 0;">Leads Progression Tracker</p>
+      </div>
+      <div style="display: flex; gap: 20px;">
+        <div style="text-align: right;">
+          <div class="kpi-value" style="font-size: 1.5rem;">1,247</div>
+          <div style="color: #6B7A8D; font-size: 0.8rem;">Total Leads</div>
+        </div>
+        <div style="text-align: right;">
+          <div class="kpi-value" style="font-size: 1.5rem;">342</div>
+          <div style="color: #6B7A8D; font-size: 0.8rem;">Prospecting</div>
+        </div>
       </div>
     </div>
 
     <!-- Filters -->
-    <div class="filter-panel row g-3 align-items-end">
-      <div class="col-md-2">
-        <div class="filter-label">Filter by</div>
-        <select id="filterType" class="form-select">
-          <option value="email">👤 Agent</option>
-          <option value="Team Lead">🎯 Team Lead</option>
-          <option value="country">🌍 Country</option>
-          <option value="LOB">📁 LOB</option>
+    <div class="filter-panel">
+      <div class="filter-item">
+        <div class="filter-label">KAM</div>
+        <select class="filter-select" id="kamFilter">
+          <option value="">All KAMs</option>
+          <option value="Niyaz Abdullah">Niyaz Abdullah</option>
+          <option value="Ali Turabi">Ali Turabi</option>
         </select>
       </div>
-      <div class="col-md-3">
-        <div class="filter-label">Search</div>
-        <input type="text" id="search" class="form-control" placeholder="Type to filter...">
+      <div class="filter-item">
+        <div class="filter-label">REGION</div>
+        <select class="filter-select" id="regionFilter">
+          <option value="">All Regions</option>
+          <option value="Iraq">Iraq</option>
+          <option value="UAE">UAE</option>
+        </select>
       </div>
-      <div class="col-md-3">
-        <div class="filter-label">Date range</div>
-        <div class="d-flex gap-2">
-          <input type="date" id="startDate" class="form-control" />
-          <input type="date" id="endDate" class="form-control" />
+      <div class="filter-item">
+        <div class="filter-label">PRIORITY</div>
+        <select class="filter-select" id="priorityFilter">
+          <option value="">All Priorities</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <div class="filter-label">DEAL STAGE</div>
+        <select class="filter-select" id="stageFilter">
+          <option value="">All Stages</option>
+          <option value="Prospecting">Prospecting</option>
+          <option value="Demo">Demo</option>
+          <option value="Proposal">Proposal</option>
+          <option value="Negotiation">Negotiation</option>
+          <option value="Closed Won">Closed Won</option>
+          <option value="Closed Lost">Closed Lost</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <div class="filter-label">DATE RANGE</div>
+        <div class="date-range">
+          <select class="filter-select" id="dateRangeFilter">
+            <option value="">All Time</option>
+            <option value="30">Last 30 Days</option>
+            <option value="60">Last 60 Days</option>
+            <option value="90">Last 90 Days</option>
+          </select>
         </div>
       </div>
-      <div class="col-md-2">
-        <div class="filter-label">Quick filters</div>
-        <select id="quickDateFilter" class="form-select">
-          <option value="">Custom range</option>
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="quarter">Last 90 Days</option>
-        </select>
-      </div>
-      <div class="col-md-2 d-flex gap-2">
-        <button class="btn btn-outline-secondary px-4" id="applyFilters">Apply</button>
-        <button class="btn btn-outline-secondary px-4" id="resetFilters">Reset</button>
+      <div>
+        <button class="btn-apply" id="applyFilters">Apply</button>
+        <button class="btn-reset" id="resetFilters">Reset</button>
       </div>
     </div>
-
-    <!-- Team Stats -->
-    <div class="team-stats" id="teamStats" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; max-height: 90px; overflow-y: auto; padding: 8px; background: #1e242c; border-radius: 20px; border: 1px solid #363f4a;"></div>
 
     <!-- KPI Cards -->
-    <div class="row g-4 mb-4">
-      <div class="col-md-3">
-        <div class="kpi-box">
-          <div class="kpi-value" id="kpiTotal">0</div>
-          <div class="kpi-label">Total Surveys</div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-value">1,247</div>
+        <div class="kpi-label">Total Leads</div>
+        <div class="kpi-trend trend-up">▲ +12% vs last month</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">342</div>
+        <div class="kpi-label">Prospecting Leads</div>
+        <div class="kpi-trend trend-down">▼ -3% vs last month</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-value">45.6%</div>
+        <div class="kpi-label">Demo/Proposal/Negotiation</div>
+        <div class="kpi-trend trend-up">▲ +5% vs last month</div>
+        <div style="font-size: 0.7rem; color: #6B7A8D; margin-top: 5px;">of prospecting leads</div>
+      </div>
+      <div class="kpi-card">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+          <span style="color: #A05AFF;">Demo</span>
+          <span style="font-weight: 600;">18%</span>
         </div>
-      </div>
-      <div class="col-md-3">
-        <div class="kpi-box">
-          <div class="kpi-value" id="kpiRSAT">0%</div>
-          <div class="kpi-label">RSAT (4-5)</div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+          <span style="color: #FE9496;">Proposal</span>
+          <span style="font-weight: 600;">15%</span>
         </div>
-      </div>
-      <div class="col-md-3">
-        <div class="kpi-box">
-          <div class="kpi-value" id="kpiDSAT">0%</div>
-          <div class="kpi-label">DSAT (1-3)</div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="kpi-box">
-          <div class="kpi-value" id="kpiAvg">0.0</div>
-          <div class="kpi-label">Avg Score</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Agent Selector for Date-wise Performance -->
-    <div class="row mb-4">
-      <div class="col-md-6">
-        <select id="agentSelector" class="agent-selector">
-          <option value="">📋 Select Agent to View Date-wise RSAT Performance</option>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <div class="kpi-box" style="padding: 12px;">
-          <div class="d-flex justify-content-between align-items-center">
-            <span style="color: #ffffff;">Selected Agent: <strong id="selectedAgentName">None</strong></span>
-            <span><span class="badge-rsat" id="agentOverallRSAT">0%</span></span>
-          </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: #1BCFB4;">Negotiation</span>
+          <span style="font-weight: 600;">12%</span>
         </div>
       </div>
     </div>
 
-    <!-- Agent Date-wise Chart -->
-    <div class="row g-4 mb-4">
-      <div class="col-md-12">
-        <div class="card-chart">
-          <div class="card-title">
-            📅 Agent Daily Performance Trend
-            <span id="agentDateRange"></span>
-          </div>
-          <div style="height: 300px;">
-            <canvas id="agentDateWiseChart"></canvas>
-          </div>
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">🎯 Deals by Stage</div>
+        <div class="chart-container">
+          <canvas id="dealsByStageChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">⏳ Prospecting Aging</div>
+        <div class="chart-container">
+          <canvas id="agingChart"></canvas>
         </div>
       </div>
     </div>
 
-    <!-- Charts Row 1 -->
-    <div class="row g-4">
-      <div class="col-md-6">
-        <div class="card-chart">
-          <div class="card-title">
-            ⭐ RSAT by Agent
-            <span id="agentCount">(0 agents)</span>
-          </div>
-          <div class="chart-scroll-container">
-            <canvas id="agentRSATChart"></canvas>
-          </div>
-        </div>
+    <!-- Traffic Sources -->
+    <div class="traffic-sources">
+      <div class="chart-title" style="margin-bottom: 20px;">📊 Lead Sources</div>
+      <div class="source-item">
+        <span class="source-label">Search Engines</span>
+        <div class="source-bar"><div class="source-fill purple" style="width: 30%;"></div></div>
+        <span class="source-value">30%</span>
       </div>
-      <div class="col-md-6">
-        <div class="card-chart">
-          <div class="card-title">
-            📊 RSAT by LOB
-            <span id="lobCount">(0 LOBs)</span>
-          </div>
-          <div class="chart-scroll-container">
-            <canvas id="lobRSATChart"></canvas>
-          </div>
-        </div>
+      <div class="source-item">
+        <span class="source-label">Direct Click</span>
+        <div class="source-bar"><div class="source-fill teal" style="width: 30%;"></div></div>
+        <span class="source-value">30%</span>
+      </div>
+      <div class="source-item">
+        <span class="source-label">Social Media</span>
+        <div class="source-bar"><div class="source-fill coral" style="width: 40%;"></div></div>
+        <span class="source-value">40%</span>
       </div>
     </div>
 
-    <!-- Charts Row 2 - Team Lead -->
-    <div class="row g-4 mt-2">
-      <div class="col-md-6">
-        <div class="card-chart">
-          <div class="card-title">
-            🎯 RSAT by Team Lead
-            <span id="leadCount">(0 leads)</span>
-          </div>
-          <div class="chart-scroll-container">
-            <canvas id="leadRSATChart"></canvas>
-          </div>
-        </div>
+    <!-- KAM Notes Table -->
+    <div class="table-container">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="chart-title" style="margin: 0;">📋 KAM Notes & Lead Details</span>
+        <span class="badge" style="background: #A05AFF; color: white; padding: 5px 15px; border-radius: 40px;">1,247 records</span>
       </div>
-      <div class="col-md-6">
-        <div class="card-chart">
-          <div class="card-title">
-            🌍 RSAT by Country
-            <span id="countryCount">(0 countries)</span>
-          </div>
-          <div class="chart-scroll-container">
-            <canvas id="countryRSATChart"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Charts Row 3 -->
-    <div class="row g-4 mt-2">
-      <div class="col-md-6">
-        <div class="card-chart">
-          <div class="card-title">
-            📌 Top 5 Contact Reasons
-            <span id="reasonCount" class="top-reasons-badge">Top 5</span>
-          </div>
-          <div class="chart-scroll-container">
-            <canvas id="reasonContributionChart"></canvas>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card-chart">
-          <div class="card-title">📈 RSAT vs DSAT</div>
-          <div style="height: 300px;">
-            <canvas id="overallRSATChart"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Data Table -->
-    <section style="margin: 30px 0 20px;">
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <span style="font-size: 1.2rem; color: #ffffff;">📋 Detailed Records</span>
-        <span class="status-badge" id="recordCount">0 records</span>
-      </div>
-      <div class="table-responsive">
+      <div style="max-height: 400px; overflow-y: auto; border-radius: 12px;" id="tableScrollContainer">
         <table class="table" id="dataTable">
           <thead>
             <tr>
               <th>Date</th>
-              <th>Email</th>
-              <th>Rider ID</th>
-              <th>Ticket ID</th>
-              <th>LOB</th>
-              <th>Contact Reason</th>
-              <th>Local Reason</th>
-              <th>RSAT</th>
-              <th>Country</th>
-              <th>Team Lead</th>
+              <th>Company</th>
+              <th>KAM</th>
+              <th>Priority</th>
+              <th>Stage</th>
+              <th>Aging</th>
+              <th>Notes</th>
             </tr>
           </thead>
-          <tbody></tbody>
+          <tbody id="tableBody">
+            <tr>
+              <td>2026-01-20</td>
+              <td>Disa Logistics</td>
+              <td>Niyaz Abdullah</td>
+              <td><span class="priority-badge priority-medium">Medium</span></td>
+              <td>Prospecting</td>
+              <td>45 days</td>
+              <td>Interested but busy right now</td>
+            </tr>
+            <tr>
+              <td>2026-01-18</td>
+              <td>Tech Solutions</td>
+              <td>Ali Turabi</td>
+              <td><span class="priority-badge priority-high">High</span></td>
+              <td>Demo</td>
+              <td>25 days</td>
+              <td>Demo scheduled next week</td>
+            </tr>
+            <tr>
+              <td>2026-01-15</td>
+              <td>Global Logistics</td>
+              <td>Niyaz Abdullah</td>
+              <td><span class="priority-badge priority-low">Low</span></td>
+              <td>Prospecting</td>
+              <td>60 days</td>
+              <td>Sent proposal, waiting for feedback</td>
+            </tr>
+            <tr>
+              <td>2026-01-12</td>
+              <td>Express Solutions</td>
+              <td>Ali Turabi</td>
+              <td><span class="priority-badge priority-high">High</span></td>
+              <td>Proposal</td>
+              <td>12 days</td>
+              <td>Very interested, follow up Thursday</td>
+            </tr>
+            <tr>
+              <td>2026-01-10</td>
+              <td>United Industries</td>
+              <td>Niyaz Abdullah</td>
+              <td><span class="priority-badge priority-medium">Medium</span></td>
+              <td>Negotiation</td>
+              <td>32 days</td>
+              <td>Waiting for budget approval</td>
+            </tr>
+          </tbody>
         </table>
       </div>
-    </section>
+    </div>
   </div>
 
   <script>
     Chart.register(ChartDataLabels);
-    
-    // ===========================================
-    // ✅ YOUR APPS SCRIPT URL
-    // ===========================================
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNrriKJrTj6jgHR8BP-pR0cA2U-4Fbt02T9Gag8cKg_VcHRUzGA0Kj-kN76koO5GrW/exec';
-    // ===========================================
-    
-    // Globals
-    let allData = [];
-    let filteredData = [];
-    let charts = {};
-    
-    // Country-specific baseline targets
-    const COUNTRY_BASELINE = {
-      'Iraq': 82.5,
-      'Kuwait': 82.5,
-      'Oman': 71.7,
-      'Qatar': 81.9,
-      'default': 82.5
-    };
-    
-    const colorPalette = [
-      '#5f7daf', '#c47b7b', '#7f9ed5', '#e09f9f', '#8fba8f',
-      '#b88fba', '#d5af7f', '#af8f8f', '#9fb5d5', '#d59fb5',
-      '#8fafaf', '#c49f7f', '#b5af8f', '#af9fd5', '#d5af9f'
-    ];
 
-    // ===========================================
-    // RSAT Definition
-    // ===========================================
-    function isRSAT(score) {
-      return score === 4 || score === 5;
-    }
+    let dealsChart, agingChart;
 
-    function isDSAT(score) {
-      return score >= 1 && score <= 3;
-    }
+    document.addEventListener('DOMContentLoaded', function() {
+      initializeCharts();
+    });
 
-    // ===========================================
-    // Parse CSV line properly
-    // ===========================================
-    function parseCSVLine(line) {
-      const values = [];
-      let inQuote = false;
-      let currentValue = '';
-      
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        
-        if (char === '"') {
-          inQuote = !inQuote;
-        } else if (char === ',' && !inQuote) {
-          values.push(currentValue);
-          currentValue = '';
-        } else {
-          currentValue += char;
-        }
-      }
-      values.push(currentValue);
-      
-      return values.map(v => v.replace(/^"|"$/g, '').trim());
-    }
-
-    // ===========================================
-    // Parse RSAT value
-    // ===========================================
-    function parseRSATValue(value) {
-      if (!value || value.trim() === '') return 0;
-      
-      const str = String(value).trim();
-      const match = str.match(/\d+(\.\d+)?/);
-      if (!match) return 0;
-      
-      const num = parseFloat(match[0]);
-      if (isNaN(num)) return 0;
-      
-      return Math.round(num);
-    }
-
-    // ===========================================
-    // Parse date
-    // ===========================================
-    function parseDate(dateStr) {
-      if (!dateStr) return null;
-      
-      try {
-        const date = new Date(dateStr);
-        return !isNaN(date) ? date : null;
-      } catch {
-        return null;
-      }
-    }
-
-    // ===========================================
-    // Load data from Apps Script with CORS-friendly methods
-    // ===========================================
-    async function loadFromGoogleSheets() {
-      const statusEl = document.getElementById('sheetStatus');
-      const loadBtn = document.getElementById('loadSheetBtn');
-      
-      loadBtn.disabled = true;
-      statusEl.innerHTML = '⏳ Loading data...';
-      statusEl.className = 'ms-3 loading';
-
-      try {
-        // Try multiple methods to fetch data
-        let csvText = null;
-        let methods = ['jsonp', 'corsProxy', 'direct'];
-        
-        for (let method of methods) {
-          try {
-            if (method === 'jsonp') {
-              console.log('Trying JSONP method...');
-              csvText = await fetchWithJSONP(APPS_SCRIPT_URL);
-            } else if (method === 'corsProxy') {
-              console.log('Trying CORS proxy...');
-              const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-              const response = await fetch(proxyUrl + APPS_SCRIPT_URL + '?t=' + Date.now(), {
-                method: 'GET',
-                headers: {
-                  'Origin': window.location.origin,
-                  'X-Requested-With': 'XMLHttpRequest'
-                }
-              });
-              csvText = await response.text();
-            } else {
-              console.log('Trying direct fetch...');
-              const response = await fetch(APPS_SCRIPT_URL + '?t=' + Date.now(), {
-                method: 'GET',
-                mode: 'cors',
-                cache: 'no-cache'
-              });
-              csvText = await response.text();
-            }
-            
-            // If we got data and it's not an error, break out of loop
-            if (csvText && !csvText.startsWith('Error:')) {
-              console.log(`✅ Success with method: ${method}`);
-              break;
-            }
-          } catch (e) {
-            console.log(`❌ Method ${method} failed:`, e.message);
-            continue;
-          }
-        }
-
-        if (!csvText || csvText.startsWith('Error:')) {
-          throw new Error(csvText || 'No data received');
-        }
-
-        // Parse CSV
-        const lines = csvText.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
-          throw new Error('No data rows found');
-        }
-
-        // Parse headers
-        const headers = parseCSVLine(lines[0]);
-        console.log('Headers found:', headers);
-
-        // Find column indices
-        const dateIdx = headers.findIndex(h => h.toLowerCase().includes('date'));
-        const emailIdx = headers.findIndex(h => h.toLowerCase().includes('email'));
-        const riderIdx = headers.findIndex(h => h.toLowerCase().includes('rider'));
-        const ticketIdx = headers.findIndex(h => h.toLowerCase().includes('ticket'));
-        const lobIdx = headers.findIndex(h => h.toLowerCase().includes('lob'));
-        const reasonIdx = headers.findIndex(h => h.toLowerCase().includes('contact') || h.toLowerCase().includes('reason'));
-        const localReasonIdx = headers.findIndex(h => h.toLowerCase().includes('local'));
-        const rsatIdx = headers.findIndex(h => h.toLowerCase().includes('rsat'));
-        const countryIdx = headers.findIndex(h => h.toLowerCase().includes('country'));
-        const teamLeadIdx = headers.findIndex(h => h.toLowerCase().includes('team') && h.toLowerCase().includes('lead'));
-
-        console.log('Column indices:', { dateIdx, emailIdx, riderIdx, ticketIdx, lobIdx, reasonIdx, localReasonIdx, rsatIdx, countryIdx, teamLeadIdx });
-
-        // Parse data rows
-        allData = [];
-        let invalidRows = 0;
-        
-        for (let i = 1; i < lines.length; i++) {
-          const values = parseCSVLine(lines[i]);
-          const rsatValue = rsatIdx >= 0 ? parseRSATValue(values[rsatIdx]) : 0;
-          
-          if (rsatValue >= 1 && rsatValue <= 5) {
-            const row = {
-              Date: dateIdx >= 0 ? values[dateIdx] || '' : '',
-              email: emailIdx >= 0 ? values[emailIdx] || '' : '',
-              'Rider ID': riderIdx >= 0 ? values[riderIdx] || '' : '',
-              'Ticket_id': ticketIdx >= 0 ? values[ticketIdx] || '' : '',
-              LOB: lobIdx >= 0 ? values[lobIdx] || 'Unknown' : 'Unknown',
-              Contact_Reason: reasonIdx >= 0 ? values[reasonIdx] || 'Unknown' : 'Unknown',
-              local_contact_reason: localReasonIdx >= 0 ? values[localReasonIdx] || '' : '',
-              RSAT: rsatValue,
-              country: countryIdx >= 0 ? values[countryIdx] || 'Unknown' : 'Unknown',
-              'Team Lead': teamLeadIdx >= 0 ? values[teamLeadIdx] || 'Unknown' : 'Unknown'
-            };
-            
-            allData.push(row);
-          } else {
-            invalidRows++;
-          }
-        }
-
-        console.log(`Loaded ${allData.length} valid records, filtered out ${invalidRows} invalid rows`);
-        console.log('Sample row:', allData[0]);
-
-        if (allData.length === 0) {
-          throw new Error('No valid data rows found');
-        }
-
-        statusEl.innerHTML = `✅ Successfully loaded ${allData.length} records`;
-        statusEl.style.color = '#4caf50';
-        statusEl.className = 'ms-3';
-        
-        filteredData = [...allData];
-        
-        populateAgentSelector();
-        updateAllVisuals();
-
-      } catch (error) {
-        console.error('Error:', error);
-        statusEl.innerHTML = `❌ Error: ${error.message}`;
-        statusEl.style.color = '#f44336';
-        statusEl.className = 'ms-3';
-        
-        const container = document.querySelector('.chroma-container');
-        const errorDiv = document.createElement('div');
-        errorDiv.style.cssText = 'background: #5a2d2d; color: #ff8a8a; padding: 20px; border-radius: 16px; margin: 20px 0; text-align: center;';
-        errorDiv.innerHTML = `
-          <strong>❌ Failed to load data</strong><br>
-          ${error.message}<br><br>
-          <strong>Please try:</strong><br>
-          1. Open <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank">https://cors-anywhere.herokuapp.com/corsdemo</a><br>
-          2. Click "Request temporary access"<br>
-          3. Reload this page<br><br>
-          <button class="btn btn-outline-secondary" onclick="location.reload()">Retry</button>
-        `;
-        container.insertBefore(errorDiv, container.firstChild);
-      } finally {
-        loadBtn.disabled = false;
-      }
-    }
-
-    // JSONP fallback for when CORS fails
-    function fetchWithJSONP(url) {
-      return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(data) {
-          delete window[callbackName];
-          document.body.removeChild(script);
-          resolve(data);
-        };
-
-        const script = document.createElement('script');
-        script.src = url + '?t=' + Date.now() + '&callback=' + callbackName;
-        script.onerror = function() {
-          delete window[callbackName];
-          document.body.removeChild(script);
-          reject(new Error('JSONP request failed'));
-        };
-        document.body.appendChild(script);
-      });
-    }
-
-    function populateAgentSelector() {
-      const agents = [...new Set(allData.map(row => row.email).filter(email => email))];
-      const selector = document.getElementById('agentSelector');
-      selector.innerHTML = '<option value="">📋 Select Agent to View Date-wise RSAT Performance</option>';
-      
-      agents.sort().forEach(agent => {
-        const option = document.createElement('option');
-        option.value = agent;
-        option.textContent = agent;
-        selector.appendChild(option);
-      });
-    }
-
-    function calculateDimensionScores(data, dimension) {
-      const scores = {};
-      data.forEach(row => {
-        const key = row[dimension];
-        if (key && key !== 'Unknown' && key !== 'null' && key !== '') {
-          if (!scores[key]) {
-            scores[key] = { count: 0, rsat: 0, dsat: 0 };
-          }
-          scores[key].count++;
-          
-          if (isRSAT(row.RSAT)) {
-            scores[key].rsat++;
-          } else if (isDSAT(row.RSAT)) {
-            scores[key].dsat++;
-          }
-        }
-      });
-      return scores;
-    }
-
-    function updateTeamStats(data) {
-      const leadTeams = {};
-      const countryStats = {};
-      
-      const countryNames = ['iraq', 'kuwait', 'oman', 'uae', 'saudi', 'qatar', 'bahrain', 'jordan', 'lebanon', 'egypt'];
-      
-      data.forEach(row => {
-        const lead = row['Team Lead'];
-        const agent = row.email;
-        const country = row.country;
-        
-        if (lead && agent && lead !== 'Unknown' && lead !== 'null' && lead !== '') {
-          const isCountry = countryNames.includes(lead.toLowerCase().trim());
-          
-          if (!isCountry) {
-            if (!leadTeams[lead]) {
-              leadTeams[lead] = new Set();
-            }
-            leadTeams[lead].add(agent);
-          } else {
-            if (!countryStats[lead]) {
-              countryStats[lead] = new Set();
-            }
-            countryStats[lead].add(agent);
-          }
-        }
-      });
-
-      const statsDiv = document.getElementById('teamStats');
-      statsDiv.innerHTML = '';
-      
-      if (Object.keys(leadTeams).length > 0) {
-        Object.entries(leadTeams).forEach(([lead, agents]) => {
-          const agentCount = agents.size;
-          const leadData = data.filter(r => r['Team Lead'] === lead);
-          const leadRSAT = leadData.filter(r => isRSAT(r.RSAT)).length;
-          const leadTotal = leadData.length;
-          const rsatPercent = leadTotal > 0 ? ((leadRSAT/leadTotal)*100).toFixed(1) : 0;
-          
-          const statItem = document.createElement('span');
-          statItem.style.cssText = 'background: #2a5f7a; padding: 6px 16px; border-radius: 30px; color: #ffffff; border: 1px solid #3f8bbf; margin-right: 8px;';
-          statItem.innerHTML = `👤 ${lead}: ${agentCount} agents · ${rsatPercent}% RSAT`;
-          statsDiv.appendChild(statItem);
-        });
-      }
-    }
-
-    function updateDateWiseAgentChart() {
-      const selectedAgent = document.getElementById('agentSelector').value;
-      
-      if (!selectedAgent || !filteredData.length) {
-        document.getElementById('agentDateRange').innerText = '';
-        return;
-      }
-
-      const agentData = filteredData.filter(row => row.email === selectedAgent);
-      
-      if (agentData.length === 0) {
-        document.getElementById('agentDateRange').innerText = 'No data for selected agent';
-        return;
-      }
-      
-      const dateGroups = {};
-      
-      agentData.forEach(row => {
-        if (!row.Date) return;
-        
-        const dateObj = parseDate(row.Date);
-        if (!dateObj) return;
-        
-        const dateStr = dateObj.toISOString().split('T')[0];
-        
-        if (!dateGroups[dateStr]) {
-          dateGroups[dateStr] = { count: 0, rsat: 0 };
-        }
-        dateGroups[dateStr].count++;
-        if (isRSAT(row.RSAT)) dateGroups[dateStr].rsat++;
-      });
-
-      const sortedDates = Object.keys(dateGroups).sort();
-      const rsatPercentByDate = sortedDates.map(date => 
-        ((dateGroups[date].rsat / dateGroups[date].count) * 100).toFixed(1)
-      );
-
-      const totalRSAT = agentData.filter(r => isRSAT(r.RSAT)).length;
-      const totalCount = agentData.length;
-      document.getElementById('agentOverallRSAT').innerText = `${((totalRSAT/totalCount)*100).toFixed(1)}%`;
-      document.getElementById('agentDateRange').innerHTML = `${sortedDates.length} days · ${agentData.length} interactions`;
-
-      if (charts.agentDateWise) charts.agentDateWise.destroy();
-
-      charts.agentDateWise = new Chart(document.getElementById('agentDateWiseChart'), {
-        type: 'line',
+    function initializeCharts() {
+      // Deals by Stage Chart
+      const ctx1 = document.getElementById('dealsByStageChart').getContext('2d');
+      dealsChart = new Chart(ctx1, {
+        type: 'bar',
         data: {
-          labels: sortedDates,
+          labels: ['Prospecting', 'Demo', 'Proposal', 'Negotiation', 'Closed'],
           datasets: [{
-            label: 'RSAT %',
-            data: rsatPercentByDate,
-            borderColor: '#5f7daf',
-            backgroundColor: 'rgba(95, 125, 175, 0.1)',
-            borderWidth: 3,
-            tension: 0.3,
-            fill: true,
-            pointBackgroundColor: '#5f7daf',
-            pointBorderColor: '#ffffff',
-            pointRadius: 5
+            label: 'Number of Deals',
+            data: [342, 85, 62, 41, 28],
+            backgroundColor: ['#A05AFF', '#4BCBEB', '#FE9496', '#1BCFB4', '#9E58FF'],
+            borderRadius: 8,
+            barPercentage: 0.7
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: { duration: 500 },
           plugins: {
             legend: { display: false },
-            tooltip: {
-              backgroundColor: '#1e242c',
-              titleColor: '#ffffff',
-              bodyColor: '#ffffff'
-            },
-            datalabels: {
-              anchor: 'end',
-              align: 'end',
-              formatter: (value) => value + '%',
-              color: '#ffffff',
-              font: { size: 9 }
-            }
+            tooltip: { backgroundColor: '#2D3A45' }
           },
           scales: {
             y: {
-              min: 0,
-              max: 100,
-              grid: { color: '#363f4a' },
-              ticks: { color: '#ffffff', callback: (value) => value + '%' }
+              beginAtZero: true,
+              grid: { color: '#E9EDF2' },
+              ticks: { color: '#6B7A8D' }
             },
             x: {
               grid: { display: false },
-              ticks: { color: '#ffffff', maxRotation: 45 }
+              ticks: { color: '#6B7A8D' }
             }
           }
         }
       });
-    }
 
-    function updateAllVisuals() {
-      const data = filteredData;
-      
-      updateTeamStats(data);
-      
-      const total = data.length;
-      const totalRSAT = data.filter(r => isRSAT(r.RSAT)).length;
-      const totalDSAT = data.filter(r => isDSAT(r.RSAT)).length;
-      const totalScore = data.reduce((sum, r) => sum + r.RSAT, 0);
-      
-      document.getElementById('kpiTotal').innerText = total;
-      document.getElementById('kpiRSAT').innerText = ((totalRSAT/total)*100).toFixed(1) + '%';
-      document.getElementById('kpiDSAT').innerText = ((totalDSAT/total)*100).toFixed(1) + '%';
-      document.getElementById('kpiAvg').innerText = (totalScore/total).toFixed(1);
-      document.getElementById('recordCount').innerText = `${total} records`;
-
-      // Destroy existing charts
-      Object.keys(charts).forEach(key => {
-        if (key !== 'agentDateWise' && charts[key]) charts[key].destroy();
-      });
-
-      if (data.length === 0) return;
-
-      const getChartHeight = (itemCount) => Math.max(350, itemCount * 35);
-
-      // Agent chart
-      const agentScores = calculateDimensionScores(data, 'email');
-      const allAgents = Object.entries(agentScores)
-        .sort((a, b) => b[1].count - a[1].count)
-        .map(([name, data]) => ({
-          name: name.split('@')[0],
-          rsatPercent: ((data.rsat / data.count) * 100).toFixed(1),
-          count: data.count
-        }));
-
-      document.getElementById('agentCount').innerText = `(${allAgents.length} agents)`;
-      
-      if (allAgents.length > 0) {
-        document.getElementById('agentRSATChart').style.height = getChartHeight(allAgents.length) + 'px';
-        
-        charts.agentRSAT = new Chart(document.getElementById('agentRSATChart'), {
-          type: 'bar',
-          data: {
-            labels: allAgents.map(a => `${a.name} (${a.count})`),
-            datasets: [{
-              label: 'RSAT %',
-              data: allAgents.map(a => parseFloat(a.rsatPercent)),
-              backgroundColor: colorPalette,
-              borderRadius: 6,
-              barPercentage: 0.7
-            }]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: '#1e242c',
-                titleColor: '#ffffff',
-                bodyColor: '#ffffff'
-              },
-              datalabels: {
-                anchor: 'end',
-                align: 'end',
-                formatter: (v) => v + '%',
-                color: '#ffffff',
-                font: { size: 9 }
-              }
-            },
-            scales: { 
-              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
-              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      // LOB chart
-      const lobScores = calculateDimensionScores(data, 'LOB');
-      const lobData = Object.entries(lobScores)
-        .filter(([name]) => name && name !== 'Unknown')
-        .map(([name, data]) => ({
-          name,
-          rsatPercent: ((data.rsat / data.count) * 100).toFixed(1),
-          count: data.count
-        }));
-
-      document.getElementById('lobCount').innerText = `(${lobData.length} LOBs)`;
-      
-      if (lobData.length > 0) {
-        document.getElementById('lobRSATChart').style.height = getChartHeight(lobData.length) + 'px';
-        
-        charts.lobRSAT = new Chart(document.getElementById('lobRSATChart'), {
-          type: 'bar',
-          data: {
-            labels: lobData.map(l => `${l.name} (${l.count})`),
-            datasets: [{
-              label: 'RSAT %',
-              data: lobData.map(l => parseFloat(l.rsatPercent)),
-              backgroundColor: colorPalette,
-              borderRadius: 6,
-              barPercentage: 0.7
-            }]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: '#1e242c',
-                titleColor: '#ffffff',
-                bodyColor: '#ffffff'
-              },
-              datalabels: {
-                anchor: 'end',
-                align: 'end',
-                formatter: (v) => v + '%',
-                color: '#ffffff',
-                font: { size: 9 }
-              }
-            },
-            scales: { 
-              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
-              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      // Team Lead chart
-      const leadScores = calculateDimensionScores(data, 'Team Lead');
-      const leadData = Object.entries(leadScores)
-        .filter(([name]) => name && name !== 'Unknown')
-        .map(([name, data]) => ({
-          name,
-          rsatPercent: ((data.rsat / data.count) * 100).toFixed(1),
-          count: data.count
-        }));
-
-      document.getElementById('leadCount').innerText = `(${leadData.length} leads)`;
-      
-      if (leadData.length > 0) {
-        document.getElementById('leadRSATChart').style.height = getChartHeight(leadData.length) + 'px';
-        
-        charts.leadRSAT = new Chart(document.getElementById('leadRSATChart'), {
-          type: 'bar',
-          data: {
-            labels: leadData.map(l => `${l.name} (${l.count})`),
-            datasets: [{
-              label: 'RSAT %',
-              data: leadData.map(l => parseFloat(l.rsatPercent)),
-              backgroundColor: colorPalette,
-              borderRadius: 6,
-              barPercentage: 0.7
-            }]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: '#1e242c',
-                titleColor: '#ffffff',
-                bodyColor: '#ffffff'
-              },
-              datalabels: {
-                anchor: 'end',
-                align: 'end',
-                formatter: (v) => v + '%',
-                color: '#ffffff',
-                font: { size: 9 }
-              }
-            },
-            scales: { 
-              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
-              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      // Country chart
-      const countryScores = calculateDimensionScores(data, 'country');
-      
-      const countryData = Object.entries(countryScores)
-        .filter(([name]) => name && name !== 'Unknown')
-        .map(([name, data]) => {
-          const actualRsat = (data.rsat / data.count) * 100;
-          const baseline = COUNTRY_BASELINE[name] || COUNTRY_BASELINE.default;
-          return {
-            name,
-            rsatPercent: actualRsat.toFixed(1),
-            baseline,
-            count: data.count,
-            variance: (actualRsat - baseline).toFixed(1)
-          };
-        })
-        .sort((a, b) => b.count - a.count);
-
-      document.getElementById('countryCount').innerText = `(${countryData.length} countries)`;
-      
-      if (countryData.length > 0) {
-        document.getElementById('countryRSATChart').style.height = getChartHeight(countryData.length) + 'px';
-        
-        charts.countryRSAT = new Chart(document.getElementById('countryRSATChart'), {
-          type: 'bar',
-          data: {
-            labels: countryData.map(c => `${c.name} (${c.count}) ${parseFloat(c.variance)>=0?'+':''}${c.variance}%`),
-            datasets: [
-              {
-                label: 'Actual RSAT %',
-                data: countryData.map(c => parseFloat(c.rsatPercent)),
-                backgroundColor: countryData.map(c => parseFloat(c.variance) >= 0 ? '#5f7daf' : '#c47b7b'),
-                borderRadius: 6,
-                barPercentage: 0.7
-              },
-              {
-                label: 'Baseline',
-                data: countryData.map(c => c.baseline),
-                type: 'line',
-                borderColor: '#ffffff',
-                borderWidth: 2,
-                pointRadius: 0,
-                fill: false
-              }
-            ]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { labels: { color: '#ffffff' } },
-              tooltip: {
-                backgroundColor: '#1e242c',
-                titleColor: '#ffffff',
-                bodyColor: '#ffffff'
-              },
-              datalabels: {
-                anchor: 'end',
-                align: 'end',
-                formatter: (value, context) => context.dataset.label === 'Actual RSAT %' ? value.toFixed(1) + '%' : '',
-                color: '#ffffff',
-                font: { size: 9 }
-              }
-            },
-            scales: { 
-              x: { max: 100, grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
-              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      // Contact Reasons chart
-      const reasonScores = calculateDimensionScores(data, 'Contact_Reason');
-      const reasonsList = Object.entries(reasonScores)
-        .filter(([name]) => name && name !== 'Unknown')
-        .sort((a, b) => b[1].count - a[1].count)
-        .slice(0, 5);
-
-      document.getElementById('reasonCount').innerText = `Top 5 of ${Object.keys(reasonScores).length}`;
-      
-      if (reasonsList.length > 0) {
-        document.getElementById('reasonContributionChart').style.height = '350px';
-        
-        charts.reasonContribution = new Chart(document.getElementById('reasonContributionChart'), {
-          type: 'bar',
-          data: {
-            labels: reasonsList.map(r => r[0].substring(0, 25)),
-            datasets: [
-              {
-                label: 'Volume',
-                data: reasonsList.map(r => r[1].count),
-                backgroundColor: '#5f7daf',
-                borderRadius: 6,
-                barPercentage: 0.7
-              },
-              {
-                label: 'RSAT %',
-                data: reasonsList.map(r => (r[1].rsat / r[1].count * 100).toFixed(1)),
-                backgroundColor: '#c47b7b',
-                borderRadius: 6,
-                barPercentage: 0.7
-              }
-            ]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { labels: { color: '#ffffff' } },
-              tooltip: {
-                backgroundColor: '#1e242c',
-                titleColor: '#ffffff',
-                bodyColor: '#ffffff'
-              },
-              datalabels: {
-                anchor: 'end',
-                align: 'end',
-                formatter: (value, context) => context.dataset.label === 'RSAT %' ? value + '%' : (value/1000).toFixed(1) + 'k',
-                color: '#ffffff',
-                font: { size: 9 }
-              }
-            },
-            scales: {
-              x: { grid: { color: '#363f4a' }, ticks: { color: '#ffffff' } },
-              y: { ticks: { color: '#ffffff' }, grid: { display: false } }
-            }
-          }
-        });
-      }
-
-      // Overall RSAT vs DSAT donut chart
-      if (charts.overallRSAT) charts.overallRSAT.destroy();
-
-      charts.overallRSAT = new Chart(document.getElementById('overallRSATChart'), {
+      // Prospecting Aging Donut Chart
+      const ctx2 = document.getElementById('agingChart').getContext('2d');
+      agingChart = new Chart(ctx2, {
         type: 'doughnut',
         data: {
-          labels: [`RSAT (${((totalRSAT/total)*100).toFixed(2)}%)`, `DSAT (${((totalDSAT/total)*100).toFixed(2)}%)`],
+          labels: ['0-30 days', '31-60 days', '60+ days'],
           datasets: [{
-            data: [totalRSAT, totalDSAT],
-            backgroundColor: ['#5f7daf', '#c47b7b'],
+            data: [48, 32, 20],
+            backgroundColor: ['#A05AFF', '#FE9496', '#1BCFB4'],
             borderWidth: 0
           }]
         },
         options: {
-          cutout: '70%',
+          cutout: '65%',
           responsive: true,
           maintainAspectRatio: false,
+          animation: { duration: 500 },
           plugins: {
-            legend: { position: 'bottom', labels: { color: '#ffffff' } },
-            tooltip: {
-              backgroundColor: '#1e242c',
-              titleColor: '#ffffff',
-              bodyColor: '#ffffff'
+            legend: { 
+              position: 'bottom',
+              labels: { color: '#6B7A8D' }
             },
+            tooltip: { backgroundColor: '#2D3A45' },
             datalabels: {
-              color: '#ffffff',
-              font: { weight: '600', size: 12 },
-              formatter: (value, ctx) => {
-                const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                return ((value/total)*100).toFixed(2) + '%';
-              },
-              backgroundColor: 'rgba(30, 36, 44, 0.8)',
-              borderRadius: 12,
-              padding: { top: 4, bottom: 4, left: 8, right: 8 }
+              formatter: (value) => value + '%',
+              color: 'white',
+              font: { weight: 'bold' }
             }
           }
         }
       });
-
-      updateTable(data);
-      updateDateWiseAgentChart();
     }
 
-    function updateTable(data) {
-      const tbody = document.querySelector('#dataTable tbody');
-      tbody.innerHTML = '';
+    // Filter functionality
+    document.getElementById('applyFilters').addEventListener('click', function() {
+      document.body.classList.add('loading');
       
-      data.slice(0, 100).forEach(row => {
-        const tr = document.createElement('tr');
-        const badgeClass = isRSAT(row.RSAT) ? 'badge-rsat' : (isDSAT(row.RSAT) ? 'badge-dsat' : 'badge-neutral');
-        
-        tr.innerHTML = `
-          <td>${row.Date || '-'}</td>
-          <td>${row.email || '-'}</td>
-          <td>${row['Rider ID'] || '-'}</td>
-          <td>${row['Ticket_id'] || '-'}</td>
-          <td>${row.LOB || '-'}</td>
-          <td>${row.Contact_Reason || '-'}</td>
-          <td>${row.local_contact_reason || '-'}</td>
-          <td><span class="${badgeClass}">${row.RSAT || '-'}</span></td>
-          <td>${row.country || '-'}</td>
-          <td>${row['Team Lead'] || '-'}</td>`;
-        tbody.appendChild(tr);
-      });
+      // Simulate filter action
+      setTimeout(function() {
+        document.body.classList.remove('loading');
+        alert('Filters applied! (Demo - Connect Google Sheet for real data)');
+      }, 300);
+    });
 
-      if (data.length > 100) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="10" class="text-center">Showing first 100 of ${data.length} records</td>`;
-        tbody.appendChild(tr);
-      }
-    }
+    document.getElementById('resetFilters').addEventListener('click', function() {
+      document.body.classList.add('loading');
+      
+      document.querySelectorAll('.filter-select').forEach(select => select.value = '');
+      
+      setTimeout(function() {
+        document.body.classList.remove('loading');
+      }, 300);
+    });
 
-    // Event listeners
-    document.getElementById('loadSheetBtn').addEventListener('click', loadFromGoogleSheets);
-    
-  document.getElementById('applyFilters').addEventListener('click', () => {
-  const filterType = document.getElementById('filterType').value;
-  const query = document.getElementById('search').value.toLowerCase().trim();
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  
-  filteredData = allData.filter(row => {
-    // Text filter
-    let textMatch = true;
-    if (query) {
-      let fieldValue = '';
-      switch(filterType) {
-        case 'email':
-          fieldValue = row.email || '';
-          break;
-        case 'Team Lead':
-          fieldValue = row['Team Lead'] || '';
-          break;
-        case 'country':
-          fieldValue = row.country || '';
-          break;
-        case 'LOB':
-          fieldValue = row.LOB || '';
-          break;
-        default:
-          fieldValue = row.email || '';
-      }
-      textMatch = fieldValue.toString().toLowerCase().includes(query);
-    }
-    
-    // Date filter
-    let dateMatch = true;
-    if (startDate || endDate) {
-      const rowDate = parseDate(row.Date);
-      if (rowDate) {
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        
-        if (start) start.setHours(0, 0, 0, 0);
-        if (end) end.setHours(23, 59, 59, 999);
-        
-        if (start && rowDate < start) dateMatch = false;
-        if (end && rowDate > end) dateMatch = false;
-      } else {
-        // If row has invalid date and date filter is applied, exclude it
-        dateMatch = false;
-      }
-    }
-    
-    return textMatch && dateMatch;
-  });
-  
-  updateAllVisuals();
-});
-
-document.getElementById('resetFilters').addEventListener('click', () => {
-  document.getElementById('filterType').value = 'email';
-  document.getElementById('search').value = '';
-  document.getElementById('startDate').value = '';
-  document.getElementById('endDate').value = '';
-  document.getElementById('quickDateFilter').value = '';
-  filteredData = [...allData];
-  updateAllVisuals();
-});
-
-// Quick date filter handler
-document.getElementById('quickDateFilter').addEventListener('change', function() {
-  const value = this.value;
-  const today = new Date();
-  let startDate = '';
-  let endDate = formatDateForCompare(today);
-  
-  switch(value) {
-    case 'today':
-      startDate = endDate;
-      break;
-    case 'week':
-      const weekAgo = new Date(today);
-      weekAgo.setDate(today.getDate() - 7);
-      startDate = formatDateForCompare(weekAgo);
-      break;
-    case 'month':
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(today.getMonth() - 1);
-      startDate = formatDateForCompare(monthAgo);
-      break;
-    case 'quarter':
-      const quarterAgo = new Date(today);
-      quarterAgo.setDate(today.getDate() - 90);
-      startDate = formatDateForCompare(quarterAgo);
-      break;
-    default:
-      return;
-  }
-  
-  document.getElementById('startDate').value = startDate;
-  document.getElementById('endDate').value = endDate;
-  document.getElementById('applyFilters').click();
-});
-
-// Add formatDateForCompare function if it doesn't exist
-function formatDateForCompare(dateObj) {
-  if (!dateObj || isNaN(dateObj)) return '';
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const day = String(dateObj.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-document.getElementById('agentSelector').addEventListener('change', function(e) {
-  document.getElementById('selectedAgentName').innerText = e.target.value || 'None';
-  updateDateWiseAgentChart();
-});
-
-    window.onload = function() {
-      loadFromGoogleSheets();
-    };
+    // Resize handler
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(function() {
+        if (dealsChart) dealsChart.update();
+        if (agingChart) agingChart.update();
+      }, 100);
+    });
   </script>
 </body>
 </html>
