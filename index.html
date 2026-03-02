@@ -1415,15 +1415,16 @@
     // Event listeners
     document.getElementById('loadSheetBtn').addEventListener('click', loadFromGoogleSheets);
     
-    document.getElementById('applyFilters').addEventListener('click', () => {
+  document.getElementById('applyFilters').addEventListener('click', () => {
   const filterType = document.getElementById('filterType').value;
   const query = document.getElementById('search').value.toLowerCase().trim();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
   
-  if (!query) {
-    filteredData = [...allData];
-  } else {
-    filteredData = allData.filter(row => {
-      // Get the value based on selected filter type
+  filteredData = allData.filter(row => {
+    // Text filter
+    let textMatch = true;
+    if (query) {
       let fieldValue = '';
       switch(filterType) {
         case 'email':
@@ -1441,25 +1442,92 @@
         default:
           fieldValue = row.email || '';
       }
-      
-      // Convert to string and check if it includes the query
-      return fieldValue.toString().toLowerCase().includes(query);
-    });
-  }
+      textMatch = fieldValue.toString().toLowerCase().includes(query);
+    }
+    
+    // Date filter
+    let dateMatch = true;
+    if (startDate || endDate) {
+      const rowDate = parseDate(row.Date);
+      if (rowDate) {
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        
+        if (start) start.setHours(0, 0, 0, 0);
+        if (end) end.setHours(23, 59, 59, 999);
+        
+        if (start && rowDate < start) dateMatch = false;
+        if (end && rowDate > end) dateMatch = false;
+      } else {
+        // If row has invalid date and date filter is applied, exclude it
+        dateMatch = false;
+      }
+    }
+    
+    return textMatch && dateMatch;
+  });
   
   updateAllVisuals();
 });
-    
-    document.getElementById('resetFilters').addEventListener('click', () => {
-      document.getElementById('search').value = '';
-      filteredData = [...allData];
-      updateAllVisuals();
-    });
 
-    document.getElementById('agentSelector').addEventListener('change', function(e) {
-      document.getElementById('selectedAgentName').innerText = e.target.value || 'None';
-      updateDateWiseAgentChart();
-    });
+document.getElementById('resetFilters').addEventListener('click', () => {
+  document.getElementById('filterType').value = 'email';
+  document.getElementById('search').value = '';
+  document.getElementById('startDate').value = '';
+  document.getElementById('endDate').value = '';
+  document.getElementById('quickDateFilter').value = '';
+  filteredData = [...allData];
+  updateAllVisuals();
+});
+
+// Quick date filter handler
+document.getElementById('quickDateFilter').addEventListener('change', function() {
+  const value = this.value;
+  const today = new Date();
+  let startDate = '';
+  let endDate = formatDateForCompare(today);
+  
+  switch(value) {
+    case 'today':
+      startDate = endDate;
+      break;
+    case 'week':
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 7);
+      startDate = formatDateForCompare(weekAgo);
+      break;
+    case 'month':
+      const monthAgo = new Date(today);
+      monthAgo.setMonth(today.getMonth() - 1);
+      startDate = formatDateForCompare(monthAgo);
+      break;
+    case 'quarter':
+      const quarterAgo = new Date(today);
+      quarterAgo.setDate(today.getDate() - 90);
+      startDate = formatDateForCompare(quarterAgo);
+      break;
+    default:
+      return;
+  }
+  
+  document.getElementById('startDate').value = startDate;
+  document.getElementById('endDate').value = endDate;
+  document.getElementById('applyFilters').click();
+});
+
+// Add formatDateForCompare function if it doesn't exist
+function formatDateForCompare(dateObj) {
+  if (!dateObj || isNaN(dateObj)) return '';
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+document.getElementById('agentSelector').addEventListener('change', function(e) {
+  document.getElementById('selectedAgentName').innerText = e.target.value || 'None';
+  updateDateWiseAgentChart();
+});
 
     window.onload = function() {
       loadFromGoogleSheets();
