@@ -1416,12 +1416,39 @@
     document.getElementById('loadSheetBtn').addEventListener('click', loadFromGoogleSheets);
     
     document.getElementById('applyFilters').addEventListener('click', () => {
-      const query = document.getElementById('search').value.toLowerCase();
-      filteredData = allData.filter(row => 
-        !query || row.email.toLowerCase().includes(query) || row.country.toLowerCase().includes(query)
-      );
-      updateAllVisuals();
+  const filterType = document.getElementById('filterType').value;
+  const query = document.getElementById('search').value.toLowerCase().trim();
+  
+  if (!query) {
+    filteredData = [...allData];
+  } else {
+    filteredData = allData.filter(row => {
+      // Get the value based on selected filter type
+      let fieldValue = '';
+      switch(filterType) {
+        case 'email':
+          fieldValue = row.email || '';
+          break;
+        case 'Team Lead':
+          fieldValue = row['Team Lead'] || '';
+          break;
+        case 'country':
+          fieldValue = row.country || '';
+          break;
+        case 'LOB':
+          fieldValue = row.LOB || '';
+          break;
+        default:
+          fieldValue = row.email || '';
+      }
+      
+      // Convert to string and check if it includes the query
+      return fieldValue.toString().toLowerCase().includes(query);
     });
+  }
+  
+  updateAllVisuals();
+});
     
     document.getElementById('resetFilters').addEventListener('click', () => {
       document.getElementById('search').value = '';
